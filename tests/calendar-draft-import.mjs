@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {spawnSync} from 'node:child_process';
+import {writeFileSync,unlinkSync} from 'node:fs';
+import {request,root,apiRoot} from '../scripts/firestore-snapshot.mjs';
+import {encode} from '../scripts/apply-converse.mjs';
+if(!root.includes('demo-funka'))throw Error('Emulator only');const f=v=>encode(v).mapValue.fields,uid='calendarfixtureowner';
+await request('POST',apiRoot+':commit',{writes:[{update:{name:root+'/system/bootstrap',fields:f({uid})}},{update:{name:root+'/users/'+uid,fields:f({active:true,googleVerified:true,role:'superadmin'})}}]});
+const path='/tmp/funka-calendar-draft-fixture.json',id='cal-'+'a'.repeat(64),p={format:'funka-calendar-preview-v1',year:2026,sourceSha256:'b'.repeat(64),axisIssues:[],campaigns:[{id,title:'Synthetic calendar',start:'2026-10-01',end:'2026-10-10',channelHints:[],sheet:'Synthetic',range:'D8:F8',issues:['Canal por confirmar']}]};writeFileSync(path,JSON.stringify(p));
+function run(){const r=spawnSync(process.execPath,['scripts/import-calendar-drafts.mjs','--emulator','--file',path,'--apply'],{encoding:'utf8'});if(r.status!==0)throw Error(r.stderr||r.stdout);return JSON.parse(r.stdout.trim().split('\n').at(-1));}
+try{assert.equal(run().created,1);const response=await request('POST',apiRoot+':batchGet',{documents:[root+'/campaignDrafts/'+id]});const d=(Array.isArray(response)?response:[response])[0].found;assert.equal(d.fields.reviewed.booleanValue,false);d.fields.channels={arrayValue:{values:[{stringValue:'SIS'}]}};d.fields.reviewed={booleanValue:true};await request('POST',apiRoot+':commit',{writes:[{update:{name:d.name,fields:d.fields},currentDocument:{updateTime:d.updateTime}}]});const second=run();assert.equal(second.created,0);assert.equal(second.skipped,1);const again=await request('POST',apiRoot+':batchGet',{documents:[d.name]});assert.equal((Array.isArray(again)?again:[again])[0].found.fields.channels.arrayValue.values[0].stringValue,'SIS');console.log('PASS native draft import, full source verification, repetition and preservation of review');}finally{unlinkSync(path);}

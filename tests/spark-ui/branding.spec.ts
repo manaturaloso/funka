@@ -1,0 +1,12 @@
+import { test,expect } from '@playwright/test';
+import { login } from '../e2e/helpers';
+test.beforeAll(async()=>{const r=await fetch('http://127.0.0.1:8080/emulator/v1/projects/demo-funka/databases/(default)/documents',{method:'DELETE'});expect(r.ok).toBe(true);});
+const pixel='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6yWQAAAAASUVORK5CYII=';
+test('carga originales, conserva bytes, ingreso público y favicon; rechaza SVG',async({page})=>{
+  test.setTimeout(90000);await login(page,'joel.yc23@gmail.com');await page.getByRole('button',{name:'Administración',exact:true}).click();await page.getByLabel('Sección de administración').selectOption({label:'Identidad visual'});
+  await page.getByLabel('Logotipo completo',{exact:true}).setInputFiles({name:'unsafe.svg',mimeType:'image/svg+xml',buffer:Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>')});await expect(page.getByRole('alert')).toContainText('PNG');
+  await page.getByLabel('Logotipo completo',{exact:true}).setInputFiles({name:'logo.png',mimeType:'image/png',buffer:Buffer.from(pixel,'base64')});await expect(page.getByAltText('Vista previa del logotipo completo')).toHaveAttribute('src',`data:image/png;base64,${pixel}`);
+  await page.getByLabel('Símbolo circular',{exact:true}).setInputFiles({name:'symbol.png',mimeType:'image/png',buffer:Buffer.from(pixel,'base64')});await page.getByRole('button',{name:'Guardar identidad visual'}).click();await expect(page.getByRole('status')).toContainText('Identidad visual guardada');await expect(page.getByAltText('Funka · Marketing que funciona',{exact:true})).toHaveAttribute('src',`data:image/png;base64,${pixel}`);
+  await page.getByRole('button',{name:'Cerrar sesión'}).click();await expect(page.getByAltText('Funka · Marketing que funciona')).toHaveAttribute('src',`data:image/png;base64,${pixel}`);await expect(page.locator('link[data-funka-icon]')).toHaveAttribute('href',`data:image/png;base64,${pixel}`);await page.reload();await expect(page.getByAltText('Funka · Marketing que funciona')).toBeVisible();
+  await login(page,'joel.yc23@gmail.com');await page.getByRole('button',{name:'Administración',exact:true}).click();await page.getByLabel('Sección de administración').selectOption({label:'Identidad visual'});await page.getByRole('button',{name:'Quitar logotipo completo'}).click();await page.getByRole('button',{name:'Quitar símbolo circular'}).click();await page.getByRole('button',{name:'Guardar identidad visual'}).click();await expect(page.locator('link[data-funka-icon]')).toHaveCount(0);
+});

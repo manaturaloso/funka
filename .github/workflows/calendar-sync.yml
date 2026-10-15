@@ -1,0 +1,44 @@
+name: Funka calendar
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/calendar-sync.yml'
+      - 'scripts/sync-calendar.mjs'
+      - 'scripts/preview-calendar.py'
+      - 'scripts/lib/**'
+      - 'shared/calendar-sync.mts'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: funka-calendar
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.23.3'
+          cache: npm
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: python -m pip install openpyxl==3.1.5 defusedxml==0.7.1
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: projects/357365313775/locations/global/workloadIdentityPools/funka-calendar-github/providers/calendar
+          service_account: funka-calendar@funka-joel-2026.iam.gserviceaccount.com
+      - name: Synchronize approved calendar
+        run: node scripts/sync-calendar.mjs --apply ${{ github.event_name == 'workflow_dispatch' && '--force' || '' }}

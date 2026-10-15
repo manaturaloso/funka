@@ -1,0 +1,5 @@
+import { call,loadScopes } from './orders';
+import type { Order,Scope } from '../../shared/orders';
+export async function allAccessibleOrders(archived=false){const scopes=await loadScopes(),orders:Order[]=[];for(const scope of scopes){let cursor:string|null=null;do{const page:{orders:Order[];nextCursor:string|null}=await call<{orders:Order[];nextCursor:string|null}>('listScopedOrders',{teamId:scope.teamId,brandId:scope.brandId,archived,cursor});orders.push(...page.orders);if(orders.length>5000)throw new Error('La consulta supera 5000 pedidos. Reduce el alcance antes de exportar.');cursor=page.nextCursor;}while(cursor);}return {scopes,orders};}
+export function download(name:string,content:string,mime:string){const url=URL.createObjectURL(new Blob([content],{type:mime}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+export const scopeNames=(scopes:Scope[])=>(order:Order)=>{const scope=scopes.find(s=>s.teamId===order.teamId&&s.brandId===order.brandId);return {team:scope?.teamName||order.teamId,brand:scope?.brandName||order.brandId};};

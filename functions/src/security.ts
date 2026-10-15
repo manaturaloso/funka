@@ -1,0 +1,10 @@
+import {SUPERADMIN_EMAIL} from '../../shared/access';
+import { getFirestore, type Transaction } from 'firebase-admin/firestore';
+import { HttpsError } from 'firebase-functions/v2/https';
+import { z } from 'zod';
+export function parse<T>(schema:z.ZodType<T>,value:unknown):T {const result=schema.safeParse(value);if(!result.success)throw new HttpsError('invalid-argument',result.error.issues.map(issue=>issue.message).join(' '));return result.data;}
+export async function requireAdmin(tx:Transaction,uid:string){const user=await tx.get(getFirestore().doc(`users/${uid}`)),owner=await tx.get(getFirestore().doc('system/bootstrap'));if(!user.exists||user.data()!.active!==true||user.data()!.role!=='superadmin'||user.data()!.email?.toLowerCase()!==SUPERADMIN_EMAIL||owner.data()?.uid!==uid)throw new HttpsError('permission-denied','Solo un superadmin activo puede realizar esta operación.');return user.data()!;}
+export async function requireActive(tx:Transaction,uid:string){const user=await tx.get(getFirestore().doc(`users/${uid}`));if(!user.exists||user.data()!.active!==true||!['member','superadmin'].includes(user.data()!.role))throw new HttpsError('permission-denied','Tu acceso no está activo.');return user.data()!;}
+export function checkRevision(data:Record<string,unknown>|undefined,revision:number){if((data?.revision||0)!==revision)throw new HttpsError('aborted','Otra persona modificó este registro. Actualiza los datos antes de guardar.');}
+export function ensureSize(value:unknown,limit=700000){if(Buffer.byteLength(JSON.stringify(value),'utf8')>limit)throw new HttpsError('resource-exhausted','El contenido supera el tamaño permitido. Reduce las especificaciones o divide el trabajo.');}
+export function googleIdentity(auth:{uid:string;token:Record<string,unknown>}|undefined){if(!auth)throw new HttpsError('unauthenticated','Debes ingresar.');if(auth.token.email_verified!==true||typeof auth.token.email!=='string'||(auth.token.firebase as {sign_in_provider?:string}|undefined)?.sign_in_provider!=='google.com')throw new HttpsError('permission-denied','Ingresa con una cuenta Google verificada.');}

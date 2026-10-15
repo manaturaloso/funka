@@ -1,0 +1,6 @@
+import {useSiteText} from '../lib/site-texts';
+import type {Member} from '../../shared/orders';
+export function Assignees({members,value,onChange,disabled=false,loading=false,required=false,ready=true}:{members:Member[];value:string[];onChange:(uids:string[])=>void;disabled?:boolean;loading?:boolean;required?:boolean;ready?:boolean}){
+ const t=useSiteText();
+ return <fieldset className="assignees" disabled={disabled||loading||!ready} aria-required={required}><legend>{t.label('Encargados finales','Orders')}{required?' *':''}</legend><div className="assignee-options">{members.map(m=><label className="checkbox-label" key={m.uid}><input type="checkbox" name="assignees" value={m.uid} checked={value.includes(m.uid)} onChange={e=>onChange(e.target.checked?[...value,m.uid]:value.filter(uid=>uid!==m.uid))}/><span>{m.displayName}</span></label>)}</div><p className="form-hint">{t.label(!ready?'Selecciona una marca para ver sus encargados.':loading?'Cargando encargados…':!members.length?'Los invitados aparecerán al ingresar por primera vez con su correo autorizado.':'Puedes elegir varias personas.','Orders')}</p>{value.filter(uid=>!members.some(m=>m.uid===uid)).map(uid=><label className="checkbox-label" key={uid}><input type="checkbox" checked onChange={()=>onChange(value.filter(v=>v!==uid))}/>{t.label('Integrante sin acceso actual','Orders')}</label>)}</fieldset>;
+}

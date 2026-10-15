@@ -1,0 +1,1 @@
+export function dependencyCycle(nodes:Record<string,string[]>){const done=new Set<string>(),visiting=new Set<string>();function visit(id:string):boolean{if(visiting.has(id))return true;if(done.has(id))return false;visiting.add(id);for(const next of nodes[id]||[])if(visit(next))return true;visiting.delete(id);done.add(id);return false;}return Object.keys(nodes).some(visit);}

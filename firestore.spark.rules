@@ -1,0 +1,435 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function google() { return signedIn() && request.auth.token.email_verified == true && request.auth.token.firebase.sign_in_provider == 'google.com'; }
+    function active() { let p=get(/databases/$(database)/documents/users/$(request.auth.uid)).data; return google() && p.active == true && p.role in ['member','superadmin']; }
+    function ownerIdentity() {return google() && request.auth.token.email == 'joel.yc23@gmail.com';}
+    function admin() {return ownerIdentity() && get(/databases/$(database)/documents/system/bootstrap).data.uid == request.auth.uid && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin';}
+    function scope(team,brand) {
+      let p=get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return google() && p.active == true && p.role in ['member','superadmin']
+        && ((request.auth.token.email == 'joel.yc23@gmail.com' && p.role=='superadmin' && get(/databases/$(database)/documents/system/bootstrap).data.uid==request.auth.uid)
+          || ((!('invitationId' in p) || p.scopes.hasAny([{'teamId':team,'brandId':brand}])) && exists(/databases/$(database)/documents/users/$(request.auth.uid)/access/$(team+'__'+brand)) && get(/databases/$(database)/documents/teams/$(team)/brands/$(brand)).data.archived==false));
+    }
+    function authored() { return request.resource.data.actorUid == request.auth.uid && request.resource.data.createdAt == request.time; }
+    function brandImage(value) { return value == null || (value is string && value.size() <= 350000 && value.matches('^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$')); }
+    function validInvitation(d) {
+      let invitation=get(/databases/$(database)/documents/invitations/$(d.invitationId)).data;
+      return google() && d.invitationId is string && d.invitationId.matches('^[a-f0-9]{64}$')
+        && invitation.active == true && invitation.email.lower() == request.auth.token.email.lower()
+        && d.email == request.auth.token.email.lower() && d.active == true && d.role == 'member'
+        && d.invitationRevision == invitation.revision && d.scopes == invitation.scopes && d.teamIds == invitation.teamIds;
+    }
+    function claimingInvitation(uid) {
+      let path=/databases/$(database)/documents/users/$(uid);
+      let after=getAfter(path).data;
+      return google() && uid == request.auth.uid
+        && (!exists(path) || get(path).data.role == 'pending')
+        && after.updatedAt == request.time && validInvitation(after);
+    }
+    function calendarWorker() {return signedIn() && request.auth.uid=='calendar-sync' && request.auth.token.get('calendarSync',false)==true && request.auth.token.firebase.sign_in_provider=='custom';}
+    function runningCalendar() {let d=get(/databases/$(database)/documents/calendarSync/state).data;return calendarWorker() && d.status=='running' && d.leaseOwner==request.auth.uid && d.leaseExpiresMillis>request.time.toMillis();}
+    function calendarRow(d) {return d is map && d.title is string && d.title.size()>0 && d.title.size()<=2000 && d.sheet is string && d.sheet.size()<=100 && d.range is string && d.range.size()<=100 && d.start is string && d.start.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && d.end is string && d.end>=d.start && d.get('channelHints',[]) is list && d.get('channelHints',[]).hasOnly(['WP','SIS']) && d.issues is list && d.issues.size()<=20;}
+    function calendarSourceReceipt(id,missing) {
+      let run=get(/databases/$(database)/documents/calendarSync/state).data.runId;
+      let path=/databases/$(database)/documents/adminActivity/$((missing?'calendar-missing-':'calendar-source-')+run+'-'+id);
+      return getAfter(path).data.actorUid==request.auth.uid && getAfter(path).data.createdAt==request.time && getAfter(path).data.campaignId==id;
+    }
+    function calendarSourceUpdate(id) {
+      let old=resource.data;let d=request.resource.data;let previous=old.get('sourceLatest',old.source);
+      return runningCalendar() && d.revision==old.revision+1 && d.updatedAt==request.time
+        && d.diff(old).affectedKeys().hasOnly(['title','start','end','sourceLatest','sourceMissing','syncStatus','syncConflicts','revision','updatedAt'])
+        && calendarRow(d.get('sourceLatest',old.source)) && d.sourceMissing is bool && d.syncStatus in ['updated','manual','missing']
+        && d.get('syncConflicts',[]) is list && d.get('syncConflicts',[]).hasOnly(['title','start','end','channels'])
+        && (d.title==old.title || (old.title==previous.title && d.title==d.sourceLatest.title))
+        && (d.start==old.start || (old.start==previous.start && d.start==d.sourceLatest.start))
+        && (d.end==old.end || (old.end==previous.end && d.end==d.sourceLatest.end))
+        && d.end>=d.start && calendarSourceReceipt(id,d.sourceMissing);
+    }
+    match /calendarSync/{id} {
+      allow read: if admin() || calendarWorker();
+      allow write: if admin();
+      allow create,update: if id=='state' && calendarWorker()
+        && request.resource.data.keys().hasOnly(['status','runId','leaseOwner','leaseUntil','leaseExpiresMillis','revision','lastAttemptAt','updatedAt','lastSuccessDay','lastSuccessAt','lastRequestId','sourceSha256','contentHash','settingsHash','counts','error'])
+        && request.resource.data.leaseOwner==request.auth.uid && request.resource.data.runId is string && request.resource.data.runId.size()<=80
+        && request.resource.data.status in ['running','success','error'] && request.resource.data.updatedAt==request.time
+        && request.resource.data.revision==(exists(/databases/$(database)/documents/calendarSync/state)?resource.data.revision:0)+1
+        && request.resource.data.leaseExpiresMillis is int && request.resource.data.leaseExpiresMillis<=request.time.toMillis()+1260000
+        && (!exists(/databases/$(database)/documents/calendarSync/state) || resource.data.status!='running' || resource.data.leaseExpiresMillis<request.time.toMillis() || request.resource.data.runId==resource.data.runId);
+    }
+    match /calendarChanges/{id} {
+      allow read: if admin() || calendarWorker();
+      allow update: if admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['decision','status','revision','decidedBy','decidedAt']) && resource.data.status=='pending' && request.resource.data.status=='decided' && request.resource.data.revision==resource.data.revision+1 && request.resource.data.decidedBy==request.auth.uid && request.resource.data.decidedAt==request.time && (request.resource.data.decision==null || request.resource.data.decision in resource.data.candidates);
+      allow create: if runningCalendar() && id.matches('^cal-[a-f0-9]{64}$') && calendarRow(request.resource.data.row) && request.resource.data.status=='pending' && request.resource.data.revision==1 && request.resource.data.candidates is list && request.resource.data.candidates.size()<=2000 && request.resource.data.createdAt==request.time;
+      allow update: if runningCalendar() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['row','candidates','candidateLabels','sourceSignature','status','revision','updatedAt']) && request.resource.data.status in ['pending','applied'] && request.resource.data.revision==resource.data.revision+1 && request.resource.data.updatedAt==request.time;
+      allow delete: if false;
+    }
+    match /campaignDrafts/{id} {
+      match /orders/{channel} {
+        allow read: if admin() || calendarWorker();
+        allow update, delete: if false;
+        allow create: if admin() && channel in ['WP','SIS'] && request.resource.data.keys().hasOnly(['teamId','brandId','orderId','mode','campaignRevision','actorUid','createdAt']) && request.resource.data.actorUid == request.auth.uid && request.resource.data.createdAt == request.time && request.resource.data.mode in ['linked','created'] && get(/databases/$(database)/documents/campaignDrafts/$(id)).data.reviewed == true && get(/databases/$(database)/documents/campaignDrafts/$(id)).data.channels.hasAny([channel]) && request.resource.data.campaignRevision == get(/databases/$(database)/documents/campaignDrafts/$(id)).data.revision && request.resource.data.teamId == get(/databases/$(database)/documents/campaignDrafts/$(id)).data.teamId && request.resource.data.brandId == get(/databases/$(database)/documents/campaignDrafts/$(id)).data.brandId && existsAfter(/databases/$(database)/documents/teams/$(request.resource.data.teamId)/brands/$(request.resource.data.brandId)/orders/$(request.resource.data.orderId));
+      }
+      allow read: if admin() || calendarWorker();
+      allow create, delete: if false;
+      allow create: if runningCalendar() && id.matches('^cal-[a-f0-9]{64}$') && request.resource.data.keys().hasOnly(['id','title','start','end','channels','teamId','brandId','reviewed','revision','sourceSha256','source','sourceLatest','syncStatus','sourceMissing','syncConflicts','createdAt','updatedAt']) && request.resource.data.id==id && request.resource.data.reviewed==false && request.resource.data.teamId==null && request.resource.data.brandId==null && request.resource.data.revision==1 && request.resource.data.createdAt==request.time && request.resource.data.updatedAt==request.time && calendarRow(request.resource.data.source) && request.resource.data.title==request.resource.data.source.title && request.resource.data.start==request.resource.data.source.start && request.resource.data.end==request.resource.data.source.end && request.resource.data.channels==request.resource.data.source.channelHints && calendarSourceReceipt(id,false);
+      allow update: if calendarWorker() && calendarSourceUpdate(id);
+      function destination() {let d=request.resource.data;return (d.teamId == null && d.brandId == null) || (d.teamId is string && d.brandId is string && exists(/databases/$(database)/documents/teams/$(d.teamId)/brands/$(d.brandId)) && get(/databases/$(database)/documents/teams/$(d.teamId)/brands/$(d.brandId)).data.archived == false);}
+      allow update: if admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','start','end','channels','teamId','brandId','reviewed','syncStatus','syncConflicts','revision','updatedAt'])
+        && request.resource.data.title is string && request.resource.data.title.size()>0 && request.resource.data.title.size()<=2000
+        && request.resource.data.start is string && request.resource.data.start.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && request.resource.data.end is string && request.resource.data.end.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && request.resource.data.end>=request.resource.data.start
+        && request.resource.data.channels is list && request.resource.data.channels.hasOnly(['WP','SIS']) && request.resource.data.channels.size()<=2 && request.resource.data.channels.toSet().size()==request.resource.data.channels.size()
+        && destination() && request.resource.data.reviewed is bool && (!request.resource.data.reviewed || (request.resource.data.teamId != null && request.resource.data.channels.size()>0))
+        && request.resource.data.revision == resource.data.revision+1 && request.resource.data.updatedAt == request.time;
+    }
+    match /branding/public {
+      allow get: if true;
+      allow list, delete: if false;
+      allow create, update: if admin() && request.resource.data.keys().hasOnly(['logoData','symbolData','headerWidth','revision','updatedAt']) && request.resource.data.get('headerWidth',180) is int && request.resource.data.get('headerWidth',180)>=100 && request.resource.data.get('headerWidth',180)<=280 && brandImage(request.resource.data.logoData) && brandImage(request.resource.data.symbolData) && request.resource.data.updatedAt == request.time && ((!exists(/databases/$(database)/documents/branding/public) && request.resource.data.revision == 1) || (resource.data.revision + 1 == request.resource.data.revision));
+    }
+    function preferenceChange(uid) {
+      return active() && uid == request.auth.uid && getAfter(/databases/$(database)/documents/users/$(uid)).data.active == true && getAfter(/databases/$(database)/documents/users/$(uid)).data.preferencesRevision == get(/databases/$(database)/documents/users/$(uid)).data.get('preferencesRevision',0) + 1 && getAfter(/databases/$(database)/documents/users/$(uid)).data.preferencesUpdatedAt == request.time;
+    }
+    function followerChange(team,brand,order) {
+      let path=/databases/$(database)/documents/teams/$(team)/brands/$(brand)/orders/$(order)/followerGuard/global;
+      return getAfter(path).data.revision == (exists(path)?get(path).data.revision:0)+1 && getAfter(path).data.updatedAt == request.time;
+    }
+    function viewFilters(f) {
+      return f is map && f.keys().hasOnly(['audience','archived','view','search','scopeFilter','statusFilter','period','channel','priority','typeFilter','teamFilter','brandFilter','responsibleFilter','fromDate','toDate'])
+        && f.audience in ['mine','brands'] && f.archived is bool && f.view in ['board','list','calendar']
+        && f.search is string && f.search.size() <= 200 && f.scopeFilter is string && f.scopeFilter.size() <= 162
+        && f.statusFilter in ['','Por asignar','Pendiente','En proceso','En revisión','Entregado','Bloqueado','Esperando material','Por validar','En pausa','Por subir'] && f.period in ['','today','late','next']
+        && f.channel in ['','WP','SIS'] && f.priority in ['','Baja','Media','Normal','Alta','Urgente']
+        && f.typeFilter is string && f.typeFilter.size() <= 100
+        && f.teamFilter is string && f.teamFilter.size() <= 80 && f.brandFilter is string && f.brandFilter.size() <= 80 && f.responsibleFilter is string && f.responsibleFilter.size() <= 80
+        && f.fromDate is string && f.fromDate.matches('^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && f.toDate is string && f.toDate.matches('^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+    match /system/bootstrap {
+      allow get: if google();
+      allow create: if ownerIdentity() && request.resource.data.keys().hasOnly(['uid','email','createdAt']) && request.resource.data.uid == request.auth.uid && request.resource.data.email == request.auth.token.email && request.resource.data.createdAt == request.time && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin';
+      allow update, delete: if false;
+    }
+    match /system/sparkGuard {
+      allow get: if google() || calendarWorker();
+      allow list: if active();
+      allow create: if (active() || claimingInvitation(request.auth.uid) || calendarWorker()) && request.resource.data.keys().hasOnly(['revision','updatedAt']) && request.resource.data.revision == 1 && request.resource.data.updatedAt == request.time;
+      allow update: if (active() || claimingInvitation(request.auth.uid) || calendarWorker()) && request.resource.data.keys().hasOnly(['revision','updatedAt']) && request.resource.data.revision == resource.data.revision + 1 && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+    match /system/adminGuard {allow read, write: if admin();}
+    match /users/{uid} {
+      allow read: if google() && (request.auth.uid == uid || admin());
+      allow create: if google() && uid == request.auth.uid && request.resource.data.keys().hasOnly(['uid','email','displayName','googleVerified','authProvider','active','role','scopes','teamIds','revision','createdAt']) && request.resource.data.uid == uid && request.resource.data.email == request.auth.token.email && request.resource.data.displayName is string && request.resource.data.displayName.size() <= 200 && request.resource.data.googleVerified == true && request.resource.data.authProvider == 'google.com' && request.resource.data.revision == 1 && request.resource.data.createdAt == request.time && request.resource.data.scopes == [] && request.resource.data.teamIds == [] && ((request.resource.data.active == false && request.resource.data.role == 'pending') || (ownerIdentity() && getAfter(/databases/$(database)/documents/system/bootstrap).data.uid == uid && request.resource.data.active == true && request.resource.data.role == 'superadmin'));
+      allow create: if google() && uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid','email','displayName','googleVerified','authProvider','active','role','scopes','teamIds','revision','createdAt','updatedAt','invitationId','invitationRevision'])
+        && request.resource.data.uid == uid && request.resource.data.displayName is string && request.resource.data.displayName.size() <= 200
+        && request.resource.data.googleVerified == true && request.resource.data.authProvider == 'google.com'
+        && request.resource.data.revision == 1 && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+        && validInvitation(request.resource.data);
+      allow update: if google() && uid == request.auth.uid && resource.data.role == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email','active','role','scopes','teamIds','revision','updatedAt','invitationId','invitationRevision'])
+        && request.resource.data.revision == resource.data.revision+1 && request.resource.data.updatedAt == request.time
+        && validInvitation(request.resource.data);
+      allow update: if (active() && uid == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['preferencesRevision','preferencesUpdatedAt']) && request.resource.data.preferencesRevision == resource.data.get('preferencesRevision',0)+1 && request.resource.data.preferencesUpdatedAt == request.time) || (admin() && request.resource.data.uid == resource.data.uid && request.resource.data.email == resource.data.email && request.resource.data.googleVerified == resource.data.googleVerified && request.resource.data.authProvider == resource.data.authProvider && request.resource.data.createdAt == resource.data.createdAt && (request.resource.data.role != 'superadmin' || uid == get(/databases/$(database)/documents/system/bootstrap).data.uid) && request.resource.data.revision == resource.data.revision + 1 && request.resource.data.updatedAt == request.time && (uid != get(/databases/$(database)/documents/system/bootstrap).data.uid || (request.resource.data.active == true && request.resource.data.role == 'superadmin')));
+      allow delete: if admin() && uid != get(/databases/$(database)/documents/system/bootstrap).data.uid;
+      match /access/{key} {
+        allow read: if google() && (uid == request.auth.uid || admin()); allow write: if admin();
+        allow create, update: if claimingInvitation(uid) && request.resource.data.keys().hasOnly(['teamId','brandId'])
+          && key == request.resource.data.teamId+'__'+request.resource.data.brandId
+          && getAfter(/databases/$(database)/documents/users/$(uid)).data.scopes.hasAny([request.resource.data]);
+      }
+      match /brandAccess/{brand} {
+        allow read: if google() && (uid == request.auth.uid || admin());
+        allow write: if admin();
+        allow create, update: if claimingInvitation(uid) && request.resource.data.keys().hasOnly(['teamId','brandId'])
+          && request.resource.data.brandId == brand && getAfter(/databases/$(database)/documents/users/$(uid)).data.scopes.hasAny([request.resource.data]);
+      }
+      match /views/{viewId} {
+        allow read: if active() && (uid == request.auth.uid || admin());
+        allow create, update: if preferenceChange(uid) && request.resource.data.keys().hasOnly(['name','filters','revision','createdAt','updatedAt']) && request.resource.data.name is string && request.resource.data.name.size()>0 && request.resource.data.name.size()<=80 && viewFilters(request.resource.data.filters) && request.resource.data.updatedAt == request.time && ((!exists(/databases/$(database)/documents/users/$(uid)/views/$(viewId)) && request.resource.data.revision == 1 && request.resource.data.createdAt == request.time) || (request.resource.data.revision == resource.data.revision+1 && request.resource.data.createdAt == resource.data.createdAt));
+        allow delete: if admin() || preferenceChange(uid);
+      }
+      match /memberships/{team} {
+        allow read: if google() && (uid == request.auth.uid || admin()); allow write: if admin();
+        allow create, update: if claimingInvitation(uid) && request.resource.data.keys().hasOnly(['teamId']) && request.resource.data.teamId == team
+          && team in getAfter(/databases/$(database)/documents/users/$(uid)).data.teamIds;
+      }
+    }
+    function imageNames(d) {
+      let images=d.get('detailImages',[]);
+      return images.size()==0?[]:(images.size()==1?[{'id':images[0].id,'name':images[0].name}]:[{'id':images[0].id,'name':images[0].name},{'id':images[1].id,'name':images[1].name}]);
+    }
+    function snapshotMatches(snapshot,d) {
+      let keys=['id','teamId','brandId','title','description','type','channel','priority','assigneeUid','collaborators','deadline','status','pieces','assignedUids','createdBy','revision','archived','deadlineMode','review','deliveryUrl','deckWarning','block','deck','orderTemplate','dependencies','campaignName','estimatedMinutes','assignedOn','socialNetwork','postingDate','deliveryException'];
+      return snapshot is map && snapshot.keys().hasOnly(keys.concat(['detailImages']))
+        && snapshot.diff(d).affectedKeys().intersection(keys.toSet()).size()==0 && snapshot.get('detailImages',[])==imageNames(d);
+    }
+    function orderPath(team,brand,order) {return /databases/$(database)/documents/teams/$(team)/brands/$(brand)/orders/$(order);}
+    function receiptPath(team,brand,order,revision) {return /databases/$(database)/documents/adminActivity/$('collab-'+team+'__'+brand+'__'+order+'__'+string(revision));}
+    function hasReceipt(team,brand,order) {
+      let d=request.resource.data;
+      let event=getAfter(receiptPath(team,brand,order,d.revision)).data;
+      let activity=getAfter(/databases/$(database)/documents/teams/$(team)/brands/$(brand)/orders/$(order)/activity/$(d.lastOperationId)).data;
+      return getAfter(/databases/$(database)/documents/system/sparkGuard).data.updatedAt == request.time
+        && getAfter(/databases/$(database)/documents/system/sparkGuard).data.revision == (exists(/databases/$(database)/documents/system/sparkGuard)?get(/databases/$(database)/documents/system/sparkGuard).data.revision:0)+1
+        && event.actorUid == request.auth.uid && event.createdAt == request.time
+        && activity.actorUid == request.auth.uid && activity.createdAt == request.time && activity.revision == d.revision && event.action == 'order.'+activity.action;
+    }
+    function optionalText(d,key,max) {return d.get(key,'') is string && d.get(key,'').size()<=max;}
+    function validOrderFields(d,team,brand) {
+      let directory=get(/databases/$(database)/documents/teams/$(team)/brands/$(brand)/collaboration/directory).data.uids;
+      let settings= /databases/$(database)/documents/settings/general;
+      let required=exists(settings)?get(settings).data.get('requiredFields',[]):[];
+      return d.title is string && d.title.size()>0 && d.title.size()<=200
+        && d.description is string && d.description.size()<=10000
+        && d.type is string && d.type.size()>0 && d.type.size()<=100 && d.channel in [null,'WP','SIS']
+        && d.priority in ['Alta','Media','Baja','Normal','Urgente']
+        && d.status in ['Por asignar','Pendiente','En proceso','Esperando material','Por validar','En pausa','Entregado','Por subir','En revisión','Bloqueado']
+        && (d.assigneeUid == null || d.assigneeUid in directory)
+        && d.collaborators is list && d.collaborators.size()<=50 && d.collaborators.hasOnly(directory)
+        && d.assignedUids is list && d.assignedUids.size()<=151 && d.assignedUids.hasOnly(directory)
+        && (d.deadline == null || (d.deadline is string && d.deadline.size()<=40))
+        && d.archived is bool && d.review in ['Pendiente','Aprobado','Requiere ajustes']
+        && d.deadlineMode in ['manual','automatic'] && d.pieces is list && d.pieces.size()<=100
+        && d.get('detailImages',[]) is list && d.get('detailImages',[]).size()<=2
+        && optionalText(d,'campaignName',200) && optionalText(d,'socialNetwork',100)
+        && (d.get('estimatedMinutes',null)==null || (d.estimatedMinutes is int && d.estimatedMinutes>0 && d.estimatedMinutes<=100000))
+        && (!required.hasAny(['assigneeUid']) || d.assigneeUid!=null)
+        && (!required.hasAny(['deadline']) || d.deadline!=null)
+        && (!required.hasAny(['channel']) || d.channel!=null);
+    }
+    function calendarDeadlineChange(team,brand,order) {
+      let old=resource.data;let d=request.resource.data;
+      let campaign=getAfter(/databases/$(database)/documents/campaignDrafts/$(old.campaign.id)).data;
+      let marker=get(/databases/$(database)/documents/campaignDrafts/$(old.campaign.id)/orders/$(old.channel)).data;
+      let op=get(/databases/$(database)/documents/calendarSync/state).data.runId+'-'+old.campaign.id;
+      let receipt=getAfter(/databases/$(database)/documents/adminActivity/$('calendar-deadline-'+op+'-'+old.channel)).data;
+      return runningCalendar() && old.deadlineMode=='automatic' && old.status!='Entregado' && old.archived==false
+        && get(/databases/$(database)/documents/teams/$(team)/brands/$(brand)).data.archived==false
+        && marker.mode=='created' && marker.teamId==team && marker.brandId==brand && marker.orderId==order
+        && campaign.reviewed==true && campaign.teamId==team && campaign.brandId==brand && campaign.get('sourceMissing',false)==false
+        && d.diff(old).affectedKeys().hasOnly(['deadline','campaign','revision','updatedAt']) && d.revision==old.revision+1 && d.updatedAt==request.time
+        && d.deadline is string && d.deadline.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$')
+        && d.campaign.diff(old.campaign).affectedKeys().hasOnly(['revision','start','end']) && d.campaign.id==old.campaign.id && d.campaign.revision==campaign.revision && d.campaign.start==campaign.start && d.campaign.end==campaign.end
+        && receipt.actorUid==request.auth.uid && receipt.createdAt==request.time
+        && getAfter(/databases/$(database)/documents/teams/$(team)/brands/$(brand)/orders/$(order)/activity/$(op)).data.createdAt==request.time;
+    }
+    function validPiece(p,team,brand) {
+      return p is map && p.keys().hasOnly(['id','name','quantity','measures','format','specs','references','group','order','required','assigneeUid','deadline','state','reason','deliveryUrl','source','retired'])
+        && p.id is string && p.id.matches('^[a-zA-Z0-9-]{1,80}$') && p.name is string && p.name.size()>0 && p.name.size()<=200
+        && p.quantity is int && p.quantity>0 && p.quantity<=10000
+        && p.measures is string && p.measures.size()<=200 && p.format is string && p.format.size()<=100
+        && p.specs is string && p.specs.size()<=4000 && p.references is list && p.references.size()<=20
+        && p.group is string && p.group.size()<=100 && p.order is int && p.order>=0 && p.required is bool
+        && p.state in ['Pendiente','Lista','No aplica'] && p.reason is string && p.reason.size()<=1000
+        && (p.state!='No aplica' || !p.required || p.reason.size()>0)
+        && (p.assigneeUid==null || p.assigneeUid in get(/databases/$(database)/documents/teams/$(team)/brands/$(brand)/collaboration/directory).data.uids)
+        && (p.deadline==null || p.deadline is string) && (p.deliveryUrl==null || (p.deliveryUrl is string && p.deliveryUrl.matches('^https?://.+')));
+    }
+    function pieceChange(old,next,event,team,brand,delivery) {
+      let before=event.previousPiece;
+      let after=event.nextPiece;
+      return validPiece(after,team,brand) && next.pieces.hasAny([after])
+        && (before==null?(next.pieces.size()==old.pieces.size()+1 && next.pieces.removeAll([after])==old.pieces && after.get('source',null)==null && after.get('retired',false)==false && after.deliveryUrl==null)
+          :(old.pieces.hasAny([before]) && after.id==before.id && next.pieces.size()==old.pieces.size() && next.pieces.removeAll([after])==old.pieces.removeAll([before])
+            && (delivery?after.diff(before).affectedKeys().hasOnly(['deliveryUrl']):(after.get('source',null)==before.get('source',null) && after.get('retired',false)==before.get('retired',false) && after.deliveryUrl==before.deliveryUrl))));
+    }
+    function validMutation(team,brand,order) {
+      let old=resource.data;
+      let next=request.resource.data;
+      let event=getAfter(/databases/$(database)/documents/teams/$(team)/brands/$(brand)/orders/$(order)/activity/$(next.lastOperationId)).data;
+      let fields=next.diff(old).affectedKeys().difference(['revision','updatedAt','lastOperationId','assignedUids'].toSet());
+      return (event.action=='edit' && validOrderFields(next,team,brand) && fields.hasOnly(['title','description','type','channel','priority','assigneeUid','collaborators','deadline','deadlineMode','deck','deckWarning','pieces','campaignName','estimatedMinutes','assignedOn','socialNetwork','postingDate','detailImages'])
+          && (next.pieces==old.pieces || (old.pieces.size()==0 && old.get('deck',null)==null)))
+        || (event.action=='piece' && fields.hasOnly(['pieces','deckWarning']) && pieceChange(old,next,event,team,brand,false))
+        || (event.action=='comment' && fields.size()==0 && getAfter(/databases/$(database)/documents/teams/$(team)/brands/$(brand)/orders/$(order)/comments/$(next.lastOperationId)).data.actorUid==request.auth.uid)
+        || (event.action=='delivery' && fields.hasOnly(['pieces','deliveryUrl'])
+          && (event.pieceId==null?(next.pieces==old.pieces && next.deliveryUrl is string && next.deliveryUrl.matches('^https?://.+')):pieceChange(old,next,event,team,brand,true))
+          && getAfter(/databases/$(database)/documents/teams/$(team)/brands/$(brand)/orders/$(order)/deliveries/$(next.lastOperationId)).data.actorUid==request.auth.uid)
+        || (event.action=='status' && fields.hasOnly(['status','review','block']) && next.status==event.status && next.status in ['Por asignar','Pendiente','En proceso','Esperando material','Por validar','En pausa','Por subir','En revisión','Bloqueado'] && next.review=='Pendiente')
+        || (event.action=='deliver' && fields.hasOnly(['status','review','block','deliveredAt','deliveryException','deliveryUrl']) && next.status=='Entregado' && next.review=='Pendiente'
+          && next.deliveredAt==request.time)
+        || (event.action=='review' && fields.hasOnly(['status','review']) && old.status in ['Entregado','En revisión','Por validar']
+          && next.review==event.result && (event.result=='Requiere ajustes'?(event.reason.size()>0 && next.status=='En proceso'):(event.result=='Aprobado' && next.status==old.status)))
+        || (event.action=='archive' && fields.hasOnly(['archived']) && next.archived is bool)
+        || (event.action=='dependencies' && fields.hasOnly(['dependencies']) && next.dependencies is list && next.dependencies.size()<=20);
+    }
+    function collaborativeOrder(team,brand,order) {
+      let d=request.resource.data;
+      return request.auth.token.email != 'joel.yc23@gmail.com' && scope(team,brand) && d.lastOperationId is string
+        && d.lastOperationId.matches('^[a-zA-Z0-9-]{1,80}$') && hasReceipt(team,brand,order);
+    }
+    function collaborativeHistory(id) {
+      let d=request.resource.data;
+      let p=orderPath(d.teamId,d.brandId,d.orderId);
+      let next=getAfter(p).data;
+      return scope(d.teamId,d.brandId) && authored() && d.actorEmail == request.auth.token.email.lower()
+        && d.actorName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayName
+        && d.keys().hasOnly(['action','actorUid','actorEmail','actorName','teamId','brandId','orderId','operationId','before','after','createdAt'])
+        && id == 'collab-'+d.teamId+'__'+d.brandId+'__'+d.orderId+'__'+string(next.revision)
+        && d.operationId == next.lastOperationId && snapshotMatches(d.after,next)
+        && ((!exists(p) && next.revision==1 && d.action=='order.created' && d.before==null)
+          || (exists(p) && next.revision==get(p).data.revision+1 && snapshotMatches(d.before,get(p).data)
+            && d.action in ['order.edit','order.status','order.piece','order.comment','order.delivery','order.deliver','order.review','order.dependencies','order.archive']));
+    }
+    match /teams/{team} {
+      allow read, create, update: if admin(); allow delete: if admin();
+      match /brands/{brand} {
+        allow read: if calendarWorker() || (active() && (admin() || exists(/databases/$(database)/documents/users/$(request.auth.uid)/access/$(team + '__' + brand))));
+        allow create, update: if admin(); allow delete: if admin();
+        match /collaboration/directory {
+          allow read: if scope(team,brand) || calendarWorker();
+          allow write: if admin();
+          allow create, update: if claimingInvitation(request.auth.uid)
+            && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.scopes.hasAny([{'teamId':team,'brandId':brand}])
+            && ((!exists(/databases/$(database)/documents/teams/$(team)/brands/$(brand)/collaboration/directory) && request.resource.data.keys().hasOnly(['uids'])) || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uids'])) && request.resource.data.uids is list && request.resource.data.uids.size()<=201 && request.resource.data.uids.toSet().size()==request.resource.data.uids.size()
+            && request.resource.data.uids.toSet() == (exists(/databases/$(database)/documents/teams/$(team)/brands/$(brand)/collaboration/directory)?resource.data.uids.toSet():[].toSet()).union([request.auth.uid].toSet());
+        }
+        match /dependencies/{id} {
+          allow read: if scope(team,brand); allow create, update, delete: if admin();
+          allow create, update: if id=='graph' && scope(team,brand) && request.resource.data.keys().hasOnly(['nodes','revision','updatedAt','lastOrderId'])
+            && request.resource.data.updatedAt == request.time && request.resource.data.revision == (exists(/databases/$(database)/documents/teams/$(team)/brands/$(brand)/dependencies/graph)?resource.data.revision:0)+1
+            && request.resource.data.nodes is map && request.resource.data.nodes.size()<=500
+            && request.resource.data.lastOrderId is string
+            && request.resource.data.nodes.diff(exists(/databases/$(database)/documents/teams/$(team)/brands/$(brand)/dependencies/graph)?resource.data.nodes:{}).affectedKeys().hasOnly([request.resource.data.lastOrderId])
+            && getAfter(orderPath(team,brand,request.resource.data.lastOrderId)).data.dependencies == request.resource.data.nodes[request.resource.data.lastOrderId]
+            && getAfter(orderPath(team,brand,request.resource.data.lastOrderId)).data.updatedAt == request.time
+            && getAfter(receiptPath(team,brand,request.resource.data.lastOrderId,getAfter(orderPath(team,brand,request.resource.data.lastOrderId)).data.revision)).data.action == 'order.dependencies';
+        }
+        match /people/{uid} {
+          allow create, update: if claimingInvitation(uid) && request.resource.data.keys().hasOnly(['uid','displayName']) && request.resource.data.uid == uid
+            && request.resource.data.displayName == getAfter(/databases/$(database)/documents/users/$(uid)).data.displayName
+            && getAfter(/databases/$(database)/documents/users/$(uid)).data.scopes.hasAny([{'teamId':team,'brandId':brand}]);allow read: if scope(team,brand); allow write: if admin();}
+        match /orders/{order} {
+          allow read: if scope(team,brand);
+          allow get: if calendarWorker();
+          allow update: if calendarWorker() && calendarDeadlineChange(team,brand,order);
+          allow create: if admin() && request.resource.data.id == order && request.resource.data.teamId == team && request.resource.data.brandId == brand && request.resource.data.createdBy == request.auth.uid && request.resource.data.revision == 1 && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+          allow update: if admin() && request.resource.data.id == resource.data.id && request.resource.data.teamId == team && request.resource.data.brandId == brand && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.revision == resource.data.revision + 1 && request.resource.data.updatedAt == request.time;
+          allow create: if collaborativeOrder(team,brand,order) && validOrderFields(request.resource.data,team,brand)
+            && request.resource.data.keys().hasOnly(['id','teamId','brandId','title','description','type','channel','priority','assigneeUid','collaborators','deadline','status','pieces','assignedUids','createdBy','revision','archived','deadlineMode','review','deliveryUrl','deckWarning','block','deck','orderTemplate','dependencies','campaignName','estimatedMinutes','assignedOn','socialNetwork','postingDate','detailImages','createdAt','updatedAt','deliveredAt','lastOperationId'])
+            && request.resource.data.id == order && request.resource.data.teamId == team && request.resource.data.brandId == brand
+            && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdAt == request.time
+            && request.resource.data.updatedAt == request.time && request.resource.data.revision == 1;
+          allow update: if collaborativeOrder(team,brand,order) && validMutation(team,brand,order)
+
+            && request.resource.data.revision == resource.data.revision+1 && request.resource.data.updatedAt == request.time
+            && (!resource.data.archived || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archived','revision','updatedAt','lastOperationId']))
+            && request.resource.data.lastOperationId != resource.data.get('lastOperationId','');
+          allow delete: if admin();
+          match /followerGuard/{id} {
+            allow read: if scope(team,brand) || calendarWorker();
+            allow create, update: if id == 'global' && scope(team,brand) && existsAfter(/databases/$(database)/documents/teams/$(team)/brands/$(brand)/orders/$(order)) && request.resource.data.keys().hasOnly(['revision','updatedAt']) && request.resource.data.revision is int && request.resource.data.updatedAt == request.time && ((!exists(/databases/$(database)/documents/teams/$(team)/brands/$(brand)/orders/$(order)/followerGuard/$(id)) && request.resource.data.revision == 1) || request.resource.data.revision == resource.data.revision+1);
+            allow delete: if admin();
+          }
+          match /followers/{uid} {
+            allow read: if scope(team,brand) || calendarWorker();
+            allow create: if google() && uid == request.auth.uid && scope(team,brand) && preferenceChange(uid) && followerChange(team,brand,order) && existsAfter(/databases/$(database)/documents/teams/$(team)/brands/$(brand)/orders/$(order)) && request.resource.data.keys().hasOnly(['uid','displayName','createdAt']) && request.resource.data.uid == uid && request.resource.data.displayName == get(/databases/$(database)/documents/users/$(uid)).data.displayName && request.resource.data.createdAt == request.time;
+            allow update: if false;
+            allow delete: if admin() || (google() && uid == request.auth.uid && scope(team,brand) && preferenceChange(uid) && followerChange(team,brand,order));
+          }
+          match /{kind}/{id} {
+            allow read: if scope(team,brand) && kind in ['comments','deliveries','activity'];
+            allow create: if kind=='activity' && runningCalendar() && authored() && request.resource.data.action=='calendarDeadline' && id==get(/databases/$(database)/documents/calendarSync/state).data.runId+'-'+getAfter(orderPath(team,brand,order)).data.campaign.id && request.resource.data.revision==getAfter(orderPath(team,brand,order)).data.revision && getAfter(orderPath(team,brand,order)).data.updatedAt==request.time;
+            allow create: if admin() && kind in ['comments','deliveries','activity'] && authored();
+            allow create: if scope(team,brand) && kind in ['activity','comments','deliveries'] && authored()
+              && getAfter(orderPath(team,brand,order)).data.lastOperationId == id
+              && getAfter(orderPath(team,brand,order)).data.revision == (exists(orderPath(team,brand,order))?get(orderPath(team,brand,order)).data.revision:0)+1
+              && getAfter(receiptPath(team,brand,order,getAfter(orderPath(team,brand,order)).data.revision)).data.actorUid == request.auth.uid
+              && getAfter(receiptPath(team,brand,order,getAfter(orderPath(team,brand,order)).data.revision)).data.createdAt == request.time
+              && (kind!='activity' || request.resource.data.revision == getAfter(orderPath(team,brand,order)).data.revision)
+              && (kind!='comments' || (getAfter(receiptPath(team,brand,order,getAfter(orderPath(team,brand,order)).data.revision)).data.action=='order.comment' && request.resource.data.body is string && request.resource.data.body.size()>0 && request.resource.data.body.size()<=10000))
+              && (kind!='deliveries' || (getAfter(receiptPath(team,brand,order,getAfter(orderPath(team,brand,order)).data.revision)).data.action in ['order.delivery','order.deliver','order.created'] && request.resource.data.url is string && request.resource.data.url.matches('^https?://.+')));
+            allow update: if false; allow delete: if admin();
+          }
+        }
+      }
+    }
+    match /brands/{brand} {allow get: if active() && exists(/databases/$(database)/documents/users/$(request.auth.uid)/brandAccess/$(brand)); allow read, create, update: if admin(); allow delete: if admin();}
+    match /scopes/{key} {allow read, create, update: if admin(); allow delete: if admin();}
+    match /invitations/{id} {
+      allow read, create, update, delete: if admin();
+      allow get, list: if google() && resource.data.email == request.auth.token.email.lower();
+    }
+    match /settings/general {allow read: if active() || calendarWorker(); allow create, update: if admin(); allow delete: if admin();}
+    match /orderTemplates/{id} {
+      allow read: if active(); allow create, update: if admin(); allow delete: if admin();
+      match /versions/{version} {allow read: if admin(); allow create: if admin(); allow update: if false; allow delete: if admin();}
+    }
+    match /decks/{id} {
+      allow read: if active() && resource.data.archived == false && exists(/databases/$(database)/documents/users/$(request.auth.uid)/brandAccess/$(resource.data.brandId));
+      allow read, create, update: if admin(); allow delete: if admin();
+      match /versions/{version} {allow read: if admin(); allow create: if admin(); allow update: if false; allow delete: if admin();}
+    }
+    match /deckPreviews/{id} {
+      allow read, create, update: if admin(); allow delete: if admin();
+      match /targets/{target} {allow read: if admin(); allow create: if admin(); allow update: if false; allow delete: if admin();}
+    }
+    match /recurrences/{id} {allow read, write: if admin();}
+    match /recurrenceRuns/{id} {allow read: if admin(); allow create: if admin() && authored(); allow update, delete: if false;}
+    match /recurrenceExecutions/{id} {allow read: if admin(); allow write: if false;}
+    match /batchOperations/{id} {allow read: if admin(); allow create: if admin() && authored(); allow update, delete: if false;}
+    function personalActivity() {
+      let d=request.resource.data;
+      return google() && authored() && d.actorEmail == request.auth.token.email.lower()
+        && d.keys().hasOnly(['action','actorUid','actorEmail','createdAt','targetId','teamId','brandId','orderId','count'])
+        && (d.action == 'access' || (active() && (
+          (d.action == 'exportPrepared' && d.count is int && d.count>=0 && d.count<=5000)
+          || (d.action in ['viewSaved','viewDeleted'] && d.targetId is string && preferenceChange(request.auth.uid)
+            && (d.action == 'viewSaved'?existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)/views/$(d.targetId)):!existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)/views/$(d.targetId))))
+          || (d.action in ['followed','unfollowed'] && scope(d.teamId,d.brandId) && followerChange(d.teamId,d.brandId,d.orderId)
+            && (d.action == 'followed'?existsAfter(/databases/$(database)/documents/teams/$(d.teamId)/brands/$(d.brandId)/orders/$(d.orderId)/followers/$(request.auth.uid)):!existsAfter(/databases/$(database)/documents/teams/$(d.teamId)/brands/$(d.brandId)/orders/$(d.orderId)/followers/$(request.auth.uid))))
+          || (d.action == 'notificationRead' && d.targetId is string
+            && getAfter(/databases/$(database)/documents/notifications/$(request.auth.uid)/items/$(d.targetId)).data.read == true
+            && getAfter(/databases/$(database)/documents/notifications/$(request.auth.uid)/items/$(d.targetId)).data.readAt == request.time)
+        )));
+    }
+    function calendarAudit() {
+      let d=request.resource.data;
+      return calendarWorker() && authored() && d.action in ['calendarSource','calendarMissing','calendarDeadline','calendarSync','calendarSyncFailed']
+        && d.keys().hasOnly(['action','actorUid','campaignId','before','after','sourceSha256','teamId','brandId','orderId','operationId','runId','counts','error','createdAt'])
+        && ((d.action in ['calendarSync','calendarSyncFailed'] && d.runId==getAfter(/databases/$(database)/documents/calendarSync/state).data.runId && getAfter(/databases/$(database)/documents/calendarSync/state).data.status==(d.action=='calendarSync'?'success':'error'))
+          || (d.action in ['calendarSource','calendarMissing'] && getAfter(/databases/$(database)/documents/campaignDrafts/$(d.campaignId)).data.updatedAt==request.time)
+          || (d.action=='calendarDeadline' && getAfter(orderPath(d.teamId,d.brandId,d.orderId)).data.updatedAt==request.time && d.before.deadline==get(orderPath(d.teamId,d.brandId,d.orderId)).data.deadline && d.after.deadline==getAfter(orderPath(d.teamId,d.brandId,d.orderId)).data.deadline && d.before.campaign==get(orderPath(d.teamId,d.brandId,d.orderId)).data.campaign && d.after.campaign==getAfter(orderPath(d.teamId,d.brandId,d.orderId)).data.campaign));
+    }
+    match /adminActivity/{id} {
+      allow create: if calendarAudit();
+      allow get: if google() && id.split('__')[0] == 'access-'+request.auth.uid;
+      allow create: if (admin() && authored()) || (id.matches('^collab-.*$') && collaborativeHistory(id)) || (!id.matches('^collab-.*$') && personalActivity());
+      allow create: if id == 'invitation-claim-'+request.auth.uid && claimingInvitation(request.auth.uid)
+        && request.resource.data.keys().hasOnly(['action','actorUid','actorEmail','invitationId','invitationRevision','createdAt']) && authored()
+        && request.resource.data.get('actorEmail',request.auth.token.email.lower()) == request.auth.token.email.lower() && request.resource.data.action == 'invitationClaim'
+        && request.resource.data.invitationId == getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.invitationId
+        && request.resource.data.invitationRevision == getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.invitationRevision;allow read: if admin(); allow create: if admin() && authored(); allow update, delete: if false;}
+    match /notifications/{uid}/items/{id} {
+      allow create: if runningCalendar() && authored() && request.resource.data.type=='update' && request.resource.data.read==false
+        && request.resource.data.keys().hasOnly(['type','teamId','brandId','orderId','operationId','revision','actorUid','read','createdAt','updatedAt'])
+        && uid in get(/databases/$(database)/documents/teams/$(request.resource.data.teamId)/brands/$(request.resource.data.brandId)/collaboration/directory).data.uids
+        && getAfter(orderPath(request.resource.data.teamId,request.resource.data.brandId,request.resource.data.orderId)).data.revision==request.resource.data.revision
+        && getAfter(orderPath(request.resource.data.teamId,request.resource.data.brandId,request.resource.data.orderId)).data.updatedAt==request.time
+        && getAfter(/databases/$(database)/documents/adminActivity/$('calendar-deadline-'+request.resource.data.operationId+'-'+getAfter(orderPath(request.resource.data.teamId,request.resource.data.brandId,request.resource.data.orderId)).data.channel)).data.createdAt==request.time;
+allow read: if admin() || (google() && request.auth.uid == uid && scope(resource.data.teamId,resource.data.brandId)); allow create: if admin() && authored();
+      allow create: if scope(request.resource.data.teamId,request.resource.data.brandId) && authored()
+        && request.resource.data.keys().hasOnly(['type','teamId','brandId','orderId','operationId','revision','actorUid','createdAt','read'])
+        && request.resource.data.type in ['mention','update'] && request.resource.data.read == false
+        && uid in get(/databases/$(database)/documents/teams/$(request.resource.data.teamId)/brands/$(request.resource.data.brandId)/collaboration/directory).data.uids
+        && getAfter(orderPath(request.resource.data.teamId,request.resource.data.brandId,request.resource.data.orderId)).data.lastOperationId == request.resource.data.operationId
+        && getAfter(receiptPath(request.resource.data.teamId,request.resource.data.brandId,request.resource.data.orderId,request.resource.data.revision)).data.actorUid == request.auth.uid
+        && getAfter(receiptPath(request.resource.data.teamId,request.resource.data.brandId,request.resource.data.orderId,request.resource.data.revision)).data.createdAt == request.time;
+      allow update: if google() && request.auth.uid == uid && scope(resource.data.teamId,resource.data.brandId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read','readAt']) && request.resource.data.read == true && request.resource.data.readAt == request.time; allow delete: if admin();}
+    match /{path=**}/access/{key} {allow read: if admin(); allow write: if false;}
+    match /siteContent/public {
+      allow get: if true;
+      allow list, delete: if false;
+      allow create, update: if admin() && request.resource.data.keys().hasOnly(['revision','updatedAt']) && request.resource.data.revision is int && request.resource.data.updatedAt == request.time && ((!exists(/databases/$(database)/documents/siteContent/public) && request.resource.data.revision == 1) || request.resource.data.revision == resource.data.revision+1);
+      match /texts/{key} {
+        allow read: if true;
+        function contentChange() {let p=/databases/$(database)/documents/siteContent/public;return getAfter(p).data.revision == (exists(p)?get(p).data.revision:0)+1 && getAfter(p).data.updatedAt == request.time;}
+        allow create, update: if admin() && contentChange() && key in ["browser.title","App.79cf00c63e3c","App.a6903434865f","App.1f5f611ebddc","App.c8bd1dbf6a8e","App.ab51f6ea5985","App.b4031248c6e3","App.d5077e256157","App.d4ff39621b13","App.c6e6960395f4","Admin.de0b0f8f8b23","Admin.ff4ef7bb68e9","Admin.b0a0fda6ddf8","Admin.4b1ac40eef4b","Admin.fe5f6628c7b5","Admin.36254c5cf260","Admin.20489f9611a1","Admin.d6d9b1a55f30","Admin.617739ba49c7","Admin.579a66916cc4","Admin.0c8dd4dea714","Admin.49de7ef6b77a","Admin.b4802d8e7f27","Admin.5d87613802f3","Admin.551d103d4afc","Admin.45d597041997","Admin.df1455d2ad8e","Admin.b5406b2b2cdb","Admin.50f73b2e9c72","Admin.4c482fc8e335","Admin.6c67315861e1","Admin.cde1d1905ca2","Admin.f68396df0f4f","Admin.6079adae9766","Admin.86a3507997b0","Admin.3c8dc4dc7a83","Admin.14bdfaf2face","Admin.99cc7f05e7b8","Admin.acc2e245d5b9","Admin.20c6595373c9","Admin.f5e0c56ebe83","Admin.8cbe82eda079","Admin.e3fe2c142111","Admin.eac5386d4211","Admin.c29446754ae1","Admin.4ec4f22c0de0","Admin.8e2ca9b0cc8a","Admin.9a18ec717586","Admin.a0119ade46d0","Admin.32942ac76458","Admin.3dbcdefb3a7d","Admin.c0f88fdbafae","Admin.3868d2843d59","Admin.0119803da011","Admin.42e4a9196c01","Admin.db0a626efa9c","Admin.3423bcbbed75","Admin.dbae0b2a1a74","Admin.da34705158a7","Admin.471a9efb7112","Admin.bc013a1ac62f","Admin.3df0647047e9","Admin.ca0844ff9a18","Admin.97603bc6e7f7","Admin.22228d5392a3","Admin.ff9801cd7ded","Admin.1292453e92bb","Admin.91318b4c3d39","Admin.ee00b96fff26","Admin.f7d130b9b886","Admin.5840f09cd7a7","Admin.9648ee05ec00","Admin.44561a782151","Admin.8930e00fcc39","Admin.292d514f1df6","Admin.73e1804eb968","Admin.399b037dab0f","Admin.997dfc14fbb1","Admin.eada91217f03","Admin.709152ffc04d","Admin.1571fa2151cd","Admin.f928ca764ee1","Admin.0af00080a949","Admin.9aa5406e7588","Admin.9372a186ffa5","Admin.44023599b021","Admin.c1a10fe619c4","Admin.6c48d42dab0f","Admin.4c950851c680","Admin.28b47b21c30e","Admin.b9dbba30935c","Admin.3428f69a017a","Admin.076362212a37","Admin.fd70fd9833d1","Admin.35ccfffca0ba","Admin.299b7379fda8","Admin.768c23235951","Admin.c028580b4a10","Admin.a137f17a19a0","Admin.a6e63474985f","Admin.61b9bd17d345","Admin.0c8eb3e5ed47","Admin.729dfbc7b447","Admin.4422804ceff5","Brand.876339aab6bf","BrandingSettings.76af137b50e3","BrandingSettings.87ec96cb6f59","BrandingSettings.f5a0e3d26b66","BrandingSettings.b5bc14e02928","BrandingSettings.3c8dc4dc7a83","BrandingSettings.634b49ce6b73","DeleteDialog.be4089a3f07e","DeleteDialog.d0a9089b7558","DeleteDialog.5d48a56fce0f","DeleteDialog.5b1f44a79b63","DeleteDialog.8db71ed28b0f","Dependencies.b4a79ba3e299","Dependencies.c070c79c5896","Dependencies.a137f17a19a0","Dependencies.d15f39d60e24","Dependencies.2ef68536d8e2","Dependencies.4f251afdabbd","Dependencies.34a43c5b5a76","FollowButton.587383305443","FollowButton.0dba68125bc6","Footer.90f63096e837","Footer.3753c86823cb","Inbox.80dade6fab6f","Inbox.552a46c3282c","Inbox.3ca4ff602a18","Inbox.a137f17a19a0","Inbox.10305710cdff","Inbox.354cde498655","Inbox.acced53ef852","Inbox.2367f75304c0","Inbox.358605ff9025","Inbox.4437aa929d1e","Inbox.9b68ffe1622e","Orders.2cc7fde3f7e2","Orders.fcb4b8ee520c","Orders.8a5edab28263","Orders.cd2b05d3b5f1","Orders.5963f5595f1a","Orders.a92c175f9752","Orders.8da6065c6398","Orders.9d79aeb1735f","Orders.6d04dc249201","Orders.3c933a230af9","Orders.c59f4f4cc612","Orders.75d6b4579e1d","Orders.8a9d2f39cd1c","Orders.bc4ef222d880","Orders.5f3684b6d6ae","Orders.5c1baa9df5cf","Orders.a193059ef751","Orders.8a0d3d5071f2","Orders.d86393bc38de","Orders.e2aa46f183c0","Orders.6a5644f08b6c","Orders.efe30777e75c","Orders.809516a83cd2","Orders.fc3dd6ca9901","Orders.9fdb22b075b3","Orders.a137f17a19a0","Orders.98e5acddb6c4","Orders.ecda92faab01","Orders.162459d223dc","Orders.e11142291140","Orders.55133d4e6eb6","Orders.6a69f6cbda7d","Orders.bd78738c12a5","Orders.5e77e1785d57","Orders.68de201e0ef3","Orders.75508af49e77","Orders.0119803da011","Orders.e7c26059066d","Orders.db0a626efa9c","Orders.3423bcbbed75","Orders.dbae0b2a1a74","Orders.7e59df83ab20","Orders.b97ea1dfd39d","Orders.1dd5d19c5fef","Orders.1fd0476df0ed","Orders.c5a60534022c","Orders.e3bf08ff3742","Orders.7edada4fac1c","Orders.919bdbd125d6","Orders.2aee42aa3f74","Orders.8b4e93e928df","Orders.3c83e3558107","Orders.6caa9d26e644","Orders.bfc2d1623586","Orders.b71afd80e7a5","Orders.e88344e5a569","Orders.189509ec3fda","Orders.9d052e1fe9ea","Orders.bc313e96d62a","Orders.58f529a18b48","Orders.9fbc753d4e47","Orders.8fa63014096e","Orders.4491028c9207","Orders.c7edcb76455f","Orders.708f57bc8c81","Orders.782e298090bf","Orders.aeccae342e4b","Orders.1889332bbbae","Orders.d3d65e7c5a4e","Orders.4c08a5d5feb2","Orders.5bb29da24f9a","Orders.854660d2b7d1","Orders.7034a2f60a44","Orders.8e2ca9b0cc8a","Orders.9a18ec717586","Orders.c29446754ae1","Orders.4ec4f22c0de0","Orders.88d2a5cc100d","Orders.415ba976b8b2","Orders.afee15d77279","Orders.ac40ae1e8d41","Orders.758dc8aaa21d","Orders.2b76a4045519","Orders.84ca335e8bfc","Orders.a2fcd84a7b0c","Orders.42e4a9196c01","Orders.7b5825e6fdd0","Orders.a989ed08ba1e","Orders.49ebcf6f5cdc","Orders.297772bce748","Orders.5fe9c298d2ac","Orders.edcc923e91cb","Orders.0bb917d86bec","Orders.44c1bc77685d","Orders.959a45d44e6f","Orders.77c770f1e1f4","Orders.d134a8ecb32a","Orders.94743a1c2f3f","Orders.562bb15757a8","Orders.8930e00fcc39","Orders.292d514f1df6","Orders.73e1804eb968","Orders.399b037dab0f","Orders.997dfc14fbb1","Orders.62c1aec4ffc8","Orders.5c7953685d6a","Orders.476911d66e72","Orders.2ef68536d8e2","Orders.14a2db592fda","Orders.709152ffc04d","Orders.1571fa2151cd","Orders.98fc8a8963dc","Orders.eada91217f03","Orders.a0ce33718ced","Orders.bb9dbb406dcb","Recurrences.c0a5e6846be4","Recurrences.7cf3ce43e11f","Recurrences.1c78584c2994","Recurrences.3165b2be2964","Recurrences.2e16d7ad77f0","Recurrences.a120a8f9c1a3","Recurrences.6b583d80a1fa","Recurrences.96b32f283d1d","Recurrences.dabaecad6690","Recurrences.a137f17a19a0","Recurrences.9cd89d166061","Recurrences.e1867c7f9bb3","Recurrences.433d02fd2336","Recurrences.01ab23786167","Recurrences.acacad0708ee","Recurrences.82a0236fe890","Recurrences.cf9fa6785c37","Recurrences.1ee220aa8a78","Recurrences.8e1ef9605725","Recurrences.42e4a9196c01","Recurrences.db0a626efa9c","Recurrences.3423bcbbed75","Recurrences.dbaffe3dc5c8","Recurrences.84ca335e8bfc","Recurrences.b6c6f03b18c9","Recurrences.43f8df556d16","Recurrences.7d03a42e4646","Recurrences.0bf554f0267b","Recurrences.d1d2642642b8","Recurrences.6f7cd60fd865","Recurrences.89ff6b9bef93","Recurrences.bb9dbb406dcb","Recurrences.69d17ca16834","Recurrences.2c762c700650","Recurrences.f5690f38cf05","Recurrences.2eba946b2e1e","Recurrences.78eb2e055173","Recurrences.cd25ee5b1db8","Recurrences.5685e1faf0b3","Recurrences.f8327c081e3a","Recurrences.c9894cf002f9","Recurrences.3f2418e6d25c","Recurrences.ba5ec51d07a4","Recurrences.327848c04686","Recurrences.befdc4e33198","SavedViews.b2432c22189c","SavedViews.615334acb38f","SavedViews.612fc5a18391","SavedViews.0b3ac6d9bbf0","SavedViews.db0e1c264e7b","SavedViews.2428f4707417","SavedViews.a61c9b3c3e01","SavedViews.30d96997bd9b","SavedViews.f44bebeaa5cd","SavedViews.d8f5c66b31c6","SavedViews.636a7d4575d3","SavedViews.a9b7ae3d438d","SavedViews.37f6ea492412","SavedViews.b8298a1ae516","SavedViews.bb9dbb406dcb","TextEditor.6b33112523a4","TextEditor.b5bb4bc9fdfd","TextEditor.8b09102ef42a","TextEditor.5333450f3a8f","TextEditor.d3b051663431","TextEditor.5a8f95629abc","TextEditor.c9d8199a471c","TextEditor.f9639bab5223","TextEditor.5bb618b26dc5","TextEditor.0c5406f40298","TextEditor.71cd5f2db91a","TextEditor.6e05191b09be","TextEditor.44bf9f1074c8","TextEditor.eb8630e351e1","TextEditor.80ca383e9c8d","Workload.3e000125a0e5","Workload.dae064888122","Workload.a1fce4363854","Workload.46db04da7948","Workload.7ecb920b8725","Workload.7f62008c5661","App.21b440a9fc6d","App.ac33ba2e7269","App.049851a7002e","App.f0b326f58897","App.19b877dc467a","App.8a76158dace1","App.4b08ec901549","App.614741a3fac2","App.024a9784c17d","App.77c860cdef94","App.766d27f411cd","App.d86393bc38de","App.80dade6fab6f","App.3e000125a0e5","App.720207590f40","App.1a1b3e6ecc51","Admin.cbf6bcf26415","Admin.66f20d8fc779","Admin.4cb0c95da66c","Admin.0999e3fa62b5","Admin.1bbc54ad09bd","Admin.2fd54e8d482b","Admin.e58fd85b033b","Admin.b6b44232a664","Admin.6a91fce97f02","Admin.d44681d5234f","Admin.8ae86589890b","Admin.1bb9ca110aa5","Admin.3677f5de7bc5","Admin.3f85ad0fdf9c","Admin.eff343801ea9","Admin.e77d254d8131","Admin.e0cbab809661","Admin.959a45d44e6f","Admin.8296ee9b589d","Admin.384782938d35","Admin.13bd6e86a139","Admin.2eba946b2e1e","Admin.78eb2e055173","Admin.c9894cf002f9","Admin.88f77287cbdb","Admin.4078ffaa6db8","Admin.f819511422f3","Admin.3139c028decf","Admin.44548486eae4","Admin.24922caf2a07","Admin.a7cd4b0c1469","Admin.0741b6eafa68","Admin.fb9f51fe9250","Admin.9d05f1587b33","Admin.9f53f96c1bb7","Admin.2853d0cb4fbb","Admin.f1499109980e","Admin.565936c29bb9","Admin.92b1d72de474","Admin.cbae598da425","Admin.161660030aa6","Admin.7687021ba27d","Admin.1f678fdadb30","Admin.4581cc9c6cbf","Admin.d55b6f5e3d6c","Admin.8159db18b775","Admin.f1d31778f7ec","Admin.c32d85e4e4bf","Admin.0fc8b2642608","Admin.544314a16c9c","BrandingSettings.f039f4a8c975","BrandingSettings.6dddc3ce3df3","DeleteDialog.3ea36adcd1e0","DeleteDialog.e7ac0786668e","DeleteDialog.31e352bcac37","DeleteDialog.22bfa6354e40","DeleteDialog.6fceed78af9a","DeleteDialog.f51c10780fde","DeleteDialog.051eaf440292","DeleteDialog.7a2b1276ed9f","DeleteDialog.745fc47604de","DeleteDialog.f995c9fe2f40","DeleteDialog.22f067cf9e05","DeleteDialog.bb9dbb406dcb","DeleteDialog.b1a0c1534aca","Orders.dc2cb46157bd","Orders.d0ac3e08b255","Orders.f1910c9c4b1b","Orders.21c4e921ffc8","Orders.b237fa683486","Orders.7e4807efe11d","Orders.52ee5f657f3e","Orders.e4ce7c09d51e","Orders.833349835465","Orders.49683b71c6ac","Orders.a93e43d69f9f","Orders.bc60bd0a4d32","Orders.a95cd418f658","Orders.78285f75b2d0","Orders.601b1705710b","Orders.91cdc6662258","Orders.cdb4ee2aea69","Orders.6ba471b97925","Orders.d10ef2c5fd24","Orders.f8945f99d12e","Orders.3868d2843d59","Orders.3ce4c75a2362","Orders.a9f551bfb271","Orders.4e56e75384ad","Orders.ca48c8cbb007","Orders.60e0713617d5","Orders.dcac17e79a72","Orders.186aefe2570d","Orders.d266f6697dc3","Orders.a71bc39fe3f3","Orders.be113ca8d997","Orders.58913c93d1bd","Orders.6c4da416e1bf","Orders.dff9f3a7fe7d","Orders.6033bf4bacc3","Orders.a6e63474985f","Orders.a6b13b098abe","Orders.5d187786fa95","Orders.bf02ce5f1bb2","Orders.f06ee1bc0fd5","Orders.53c0665f27ba","Orders.0d7edf421dd6","Orders.3fa96071dbf5","Orders.e77913d0809c","Orders.80d1134ded33","Orders.4dcbb262304e","Orders.52c0659bad64","Orders.b3904bb5a773","Orders.81fea9271dc7","Orders.b144e59660fc","Orders.84d5fc555b5b","Orders.9e9ea5774a2d","Orders.0ee8d1e86bb2","Orders.53c367898434","Orders.7897f1b97b83","Orders.074a67ba484a","Orders.a09a9e4e4f01","Orders.90b750c0c6f6","Orders.cbb6649f3f5c","Orders.2ce5d4594fe5","Recurrences.c94726c03d37","TextEditor.d4f608518f86","Workload.e12f65da6fde","Workload.84ca335e8bfc","Workload.c264955af983","Workload.30bab6072105","Workload.224e1e88cf54","Workload.d7df25015732","Orders.20969c89524b","Orders.63cceb087754","Orders.d15f39d60e24","Orders.d552e8fe7322","Orders.0b6af7d377da","Orders.a7248eeb45eb","Orders.42719229fd62","Orders.9dc81c64f153","Orders.8472e9c1c6fe","Orders.5a3c77bb342d","Campaigns.ca924398cd76","Campaigns.ef4464384730","Campaigns.e972aba785ff","Campaigns.ee827d40c1b4","Campaigns.6125088cc015","Campaigns.102643974d3c","Campaigns.07ebe5ae2232","Campaigns.8dad80895202","Campaigns.5a2af601e7a2","Campaigns.3c8dc4dc7a83","Campaigns.177d77b541b5","Campaigns.58fcc9468fe1","Campaigns.a01f6faacec2","Campaigns.3cf82734ef21","Campaigns.bb85ec46f7c8","Campaigns.6c9592914655","Campaigns.81a6035fa855","Campaigns.48b2c0c9ea9b","Campaigns.ee85bbbdfcac","Campaigns.085cf7b9c802","Campaigns.9349b630fe89","Campaigns.cb4847c8e99c","Campaigns.9077146eb96e","Campaigns.c7204596b25e","Campaigns.aff4d19d6ee4","Campaigns.c5a60534022c","Campaigns.e3c2bc028a42","Campaigns.d869b349be30","Campaigns.ba3d984edcb6","Campaigns.f2c50674e1e3","Campaigns.b3a81e17d83a","Campaigns.0238bbfccfb9","Campaigns.a740cc32c49a","Campaigns.2e63c138e945","Campaigns.acced53ef852","Campaigns.980e03fb046d","Campaigns.68914d581a1b","Campaigns.989888f1af01","Campaigns.ec4769f507c0","Campaigns.00eec3d7ddf0","Campaigns.70025a56b421","Campaigns.c08dba232b56","Campaigns.bb9c8687444e","Campaigns.a817782fd321","Campaigns.84ca335e8bfc","Campaigns.4322bed768d8","Campaigns.ddcd46584ab9","Campaigns.8fb3773d7ed1","Orders.98c0f6d4a303","Orders.edc9102e6601","Orders.e04cd55d6354","Orders.5ed00468b5a3","Orders.486986b9675b","Orders.44f2aaab4085","Orders.6fcb38ddc858","Orders.47159792d4cd","Orders.c28d816de982","Orders.664bdb933452","Orders.4016c98b6578","Orders.61100e74643c","Orders.3c8dc4dc7a83","Orders.8d1065754f2a","Orders.4557bf40626e","Orders.37d968ac95a9","Orders.d357175cfe89","Orders.a03923b7f08d","Orders.f9a81d31ecbd","Orders.f4c1aa1a7f36","Orders.328533e2a184","Orders.4c44c2b2bcda","Orders.fb49058e514d","Orders.af2604e83323","Orders.e58f59d9bbbc","Orders.4d2c8b28fed2","Orders.880ed29ea570","Orders.fd76a2eb2096","Orders.59311549ced9","Orders.7f930d1bcc71","Orders.a2cd0618c65d","Orders.1d2c053c7962","Orders.656f7a0111a3","Orders.4db7dfd5208c","Orders.b6fae757ab99","Orders.705bbf1512c9","Admin.04d59388c966","Admin.90b750c0c6f6","Admin.ea1dbc3f277e","Admin.ce8efcf05aca","Admin.8ff8e0ce0e68","Admin.718c9baf191a","Admin.9a75ec1625d2","Admin.0aab1dd9978f","Admin.871090e8dfb9","Admin.1d9b51ea9d55","Admin.72493a09553b","Admin.46a5a5a65675","Admin.de7111745e10","Admin.4e9e0e677b10","Admin.008c65454f56","Admin.c61178694f1d","BrandingSettings.00bffa89f112","BrandingSettings.1f50440464c7","Admin.89db0bdae790","Admin.afad2bb73d96","Admin.410776cdf01b","Admin.a165d5b96bc9","Admin.c7ab7d1b9b4f","Admin.a488e59b2a23","Admin.723858144bd5","Admin.e252efe69747","Admin.022bd7adaf92","Orders.be42f6184f87","Orders.2902a05f49ba","Orders.630b40eeb04c","Orders.4bdb9c244fe9","Orders.a528db434445","Orders.72f5326331ce","Orders.d979092d9ab5","Orders.6e2f186d338a","Orders.535d174b83a6","Orders.71eed2f41927","Orders.24d49b8597db","Orders.f974e6530d55","Campaigns.819eeaf42772","Campaigns.bd141c30203a","Campaigns.ddfbc32ec95c","Campaigns.90b6be3f92ae","Campaigns.bfbeda04379a","Campaigns.da6c9547cd67","Campaigns.3c8c9ec733d1","Campaigns.c268dbfb6d9e","Campaigns.ab19f07ee933","Campaigns.641ce7bb42a2","Campaigns.28986a3b848d","Campaigns.577815ae05b5","Campaigns.0ac4d074d301","Campaigns.3919f9785007","Campaigns.fbc62b2bf160","Campaigns.3a51ae4a7130","Campaigns.a451e4d48924","Campaigns.a5e541154b95","Campaigns.616000ef5ad7","Campaigns.b7ee812aaa87","Campaigns.d08d71defe5a","Campaigns.a1b89f6b4aba","Campaigns.76d6a93959a7","Campaigns.ccb7eb2fcf83","Campaigns.b7aa3b12c28f","Campaigns.047c4c1051ef","Campaigns.743022050267","Campaigns.5e81c2e219c4","Orders.cbde27a50461"] && request.resource.data.keys().hasOnly(['text','revision','updatedAt']) && request.resource.data.text is string && request.resource.data.text.size()>0 && request.resource.data.text.size()<=2000 && request.resource.data.revision is int && request.resource.data.updatedAt == request.time && request.resource.data.revision == getAfter(/databases/$(database)/documents/siteContent/public).data.revision;
+        allow delete: if admin() && contentChange();
+      }
+    }
+    match /{document=**} {allow read, write: if false;}
+  }
+}

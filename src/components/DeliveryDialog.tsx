@@ -1,0 +1,8 @@
+import {useState} from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import {X} from 'lucide-react';
+import {useSiteText} from '../lib/site-texts';
+export function DeliveryDialog({title,onClose,onDeliver,feedback}:{feedback?:string;title:string;onClose:()=>void;onDeliver:(url:string|null,note:string)=>Promise<boolean>}){
+ const t=useSiteText(),[busy,setBusy]=useState(false);
+ return <Dialog.Root open onOpenChange={open=>{if(!open&&!busy)onClose();}}><Dialog.Portal><Dialog.Overlay className="dialog-overlay"/><Dialog.Content className="small-dialog"><Dialog.Title>{t.label('Marcar como entregado','Orders')}</Dialog.Title><Dialog.Description>{title}</Dialog.Description><form className="form-stack" onSubmit={async e=>{e.preventDefault();const data=new FormData(e.currentTarget);setBusy(true);try{if(await onDeliver(String(data.get('deliveryUrl')||'').trim()||null,String(data.get('note')||'')))onClose();}finally{setBusy(false);}}}><label>{t.label('Enlace de Mega (opcional)','Orders')}<input type="url" name="deliveryUrl" maxLength={4000} placeholder="https://mega.nz/…#…" disabled={busy}/></label><p className="form-hint">{t.label('Puedes entregar sin enlace.','Orders')}</p><label>{t.label('Nota de entrega (opcional)','Orders')}<textarea name="note" maxLength={1000} disabled={busy}/></label><>{feedback&&<p className="error" role="alert">{feedback}</p>}</><button className="primary" disabled={busy}>{t.label(busy?'Guardando…':'Confirmar entrega','Orders')}</button></form><Dialog.Close asChild><button className="dialog-close icon-button" disabled={busy} aria-label={t.label('Cerrar entrega','Orders')}><X size={18}/></button></Dialog.Close></Dialog.Content></Dialog.Portal></Dialog.Root>;
+}
