@@ -4,6 +4,7 @@ import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {createHash,randomUUID} from 'node:crypto';
 import {encode,fields,documentData as data} from './lib/firestore-values.mjs';
+import {calendarRequest} from './lib/calendar-http.mjs';
 import {reconcileCalendar,mergeCalendarSource,calendarOrderChange,calendarDue} from '../shared/calendar-sync.mts';
 const sourceId='1SaoG7PHCmVmKB7llxu2OFbYSVT6m25kWfNAU5I27hiQ',args=process.argv.slice(2),option=n=>{const i=args.indexOf(n);return i<0?null:args[i+1];};
 const emulator=args.includes('--emulator'),owner=args.includes('--owner'),apply=args.includes('--apply'),project=emulator?'demo-funka':'funka-joel-2026',root=`projects/${project}/databases/(default)/documents`,api='/v1/'+root;
@@ -17,7 +18,7 @@ else{
  else{if(!process.env.FIREBASE_WEB_API_KEY){const config=await (await fetch('https://pendientesfunka.web.app/__/firebase/init.json')).json();if(config.projectId!==project||!config.apiKey)throw Error('La configuración pública no corresponde al proyecto.');key=config.apiKey;}
  const {initializeApp,applicationDefault}=await import('firebase-admin/app'),{getAuth}=await import('firebase-admin/auth');const app=initializeApp({projectId:project,credential:applicationDefault(),serviceAccountId:'funka-calendar@funka-joel-2026.iam.gserviceaccount.com'});token=await getAuth(app).createCustomToken(actorUid,{calendarSync:true});}
  const authUrl=emulator?'http://127.0.0.1:9099/identitytoolkit.googleapis.com':'https://identitytoolkit.googleapis.com';const authResponse=await fetch(`${authUrl}/v1/accounts:signInWithCustomToken?key=${encodeURIComponent(key)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,returnSecureToken:true})});const identity=await authResponse.json();if(!authResponse.ok||!identity.idToken)throw Error('No se pudo autenticar el sincronizador.');
- const origin=emulator?'http://'+process.env.FIRESTORE_EMULATOR_HOST:'https://firestore.googleapis.com';transport=async(method,path,body,params={})=>{const u=new URL(origin+path);for(const[k,v]of Object.entries(params))if(v!==undefined)u.searchParams.set(k,String(v));const response=await fetch(u,{method,headers:{Authorization:'Bearer '+identity.idToken,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});if(!response.ok)throw Error(`Firebase rechazó la operación (${response.status}).`);return response.json();};
+ const origin=emulator?'http://'+process.env.FIRESTORE_EMULATOR_HOST:'https://firestore.googleapis.com';transport=async(method,path,body,params={})=>{const u=new URL(origin+path);for(const[k,v]of Object.entries(params))if(v!==undefined)u.searchParams.set(k,String(v));return calendarRequest(fetch,u,{method,headers:{Authorization:'Bearer '+identity.idToken,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});};
 }
 }catch{console.error(JSON.stringify({status:'error',message:'No se pudo autenticar el sincronizador. Revisa la identidad técnica.'}));process.exit(1);}
 const get=async path=>{const result=await transport('POST',api+':batchGet',{documents:[root+'/'+path]});return(Array.isArray(result)?result:[result])[0].found||null;};

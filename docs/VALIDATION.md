@@ -2,7 +2,7 @@
 
 - Fuente confirmada por Joel: 1SaoG7PHCmVmKB7llxu2OFbYSVT6m25kWfNAU5I27hiQ, nueve pestañas y 1561 bloques. Exportación actual: cero incidencias de eje temporal.
 - UMBRO: Cyber Umbro: 50%, WP, 26–30 octubre; COLISEUM DAYS: HASTA 50% OFF, SIS, 26–30 octubre; PRO TRAINING, Seasonal, 16–31 octubre. WP/SIS se leen también del bloque lateral combinado; Seasonal no recibe un canal supuesto.
-- Cinco pruebas Python aprobadas, incluyendo bloques combinados, conflicto título/bloque, fechas, encabezados desplazados y fuente inválida. Build aprobado. Vista previa real: 671 observaciones actualizadas, cero altas, cinco coincidencias pendientes y una ausencia; cero cambios de deadlines. No se cambia la fuente ni se recrean identidades por este ajuste.
+- Cinco pruebas de navegador aprobadas en emuladores (revisión 1280/390, sincronización 1280/390 y generación/idempotencia); revisión WP toma el indicio del último origen. Hosting publicado y comprobado en 1280/390: HTTP 200, bundle vigente, logo, sin desbordamiento/errores JS y datos privados 403. Cinco pruebas Python aprobadas, incluyendo bloques combinados, conflicto título/bloque, fechas, encabezados desplazados y fuente inválida. Build aprobado. Vista previa real: 671 observaciones actualizadas, cero altas, cinco coincidencias pendientes y una ausencia; cero cambios de deadlines. No se cambia la fuente ni se recrean identidades por este ajuste.
 
 ## 2026-10-15 · Fase 2: calendario continuo
 
