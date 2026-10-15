@@ -14,6 +14,7 @@ export async function saveCampaignReview(id:string,revision:number,input:Campaig
   const ref=doc(db!,'campaignDrafts',id),old=await tx.get(ref),guard=await tx.get(doc(db!,'system/sparkGuard')),settings=await tx.get(doc(db!,'settings/general'));
   if(!old.exists()||old.data().revision!==revision)throw Error('Otra persona cambió esta campaña. Cierra la edición y vuelve a abrirla; tus cambios no se publicaron.');
   if(data.teamId&&data.brandId){const scope=await tx.get(doc(db!,`teams/${data.teamId}/brands/${data.brandId}`));if(!scope.exists()||scope.data().archived)throw Error('La combinación de equipo y marca ya no está disponible.');}
+  for(const channel of ['WP','SIS']){const marker=await tx.get(doc(db!,`campaignDrafts/${id}/orders/${channel}`));if(marker.exists()&&(data.teamId!==marker.data().teamId||data.brandId!==marker.data().brandId||!data.channels.includes(channel as 'WP'|'SIS')))throw Error('Esta campaña tiene pedidos vinculados. Usa Corregir vínculos antes de cambiar su destino o quitar un canal.');}
   const updates: {ref:ReturnType<typeof doc>;fields:Record<string,unknown>;before:unknown;after:unknown;channel:string}[]=[];
   if(data.reviewed&&!old.data().sourceMissing)for(const channel of data.channels){
    const marker=await tx.get(doc(db!,`campaignDrafts/${id}/orders/${channel}`));if(!marker.exists()||marker.data().mode!=='created')continue;

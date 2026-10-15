@@ -2,6 +2,8 @@
 
 Revisión del pedido original y de las mejoras posteriores, 15 de octubre de 2026 (Lima). Producción: https://pendientesfunka.web.app. Se mantiene Firebase Spark sin facturación.
 
+La herramienta de Fase 3 permite corregir asociaciones por campaña con vista previa e historial; falta revisar datos reales al recuperar cuota. El límite de Firebase del 15 de octubre puede impedir temporalmente leer datos, aunque Hosting siga disponible.
+
 ## Ya utilizable
 
 Los integrantes activos pueden registrar, asignar y editar pedidos de sus equipos y marcas autorizados; usar tablero, lista y calendario; guardar piezas, imágenes de referencia, comentarios y entregas Mega. Joel administra personas, accesos, tipos, decks y textos. El formulario incluye las columnas solicitadas del Excel y los nuevos estados. Las imágenes son referencias optimizadas, no archivos originales de entrega.

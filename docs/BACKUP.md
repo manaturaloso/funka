@@ -32,3 +32,7 @@ XDG_CONFIG_HOME=/tmp/funka-config FIREBASE_EMULATORS_PATH=/workspace/.cache/fire
 El test borra únicamente su emulador demo-funka local. No ejecutar con otros datos de desarrollo que se quieran conservar. Antes de cualquier intervención destructiva real, producir un respaldo nuevo y verificar su checksum; el historial de actividad no sustituye este archivo.
 
 Antes de importar Converse se guardó otra copia consistente: 124 documentos; archivo .local-backups/funka-joel-2026-2026-10-14T03-17-54.200Z.json, lectura UTC 2026-10-14T03:15:57.992864Z (13 de octubre en Lima), SHA256 ccd8b4327a8da649a3468c303a741011fc210589bddb0666549cdb62be340a0e. Esta copia precede a los 1207 pedidos importados y permite inspeccionar el estado previo. No se ejecutó restauración ni borrado.
+
+### Navegador en el entorno cloud
+
+Chromium necesita abrir /home/agent/.pki/nssdb en modo escritura para cargar los certificados locales del proxy. Si Google devuelve ERR_CERT_AUTHORITY_INVALID durante pruebas, solicitar permiso de escritura para ese directorio mediante request_permissions antes de lanzar Chromium. Verificar certificados instalados con certutil; no desactivar TLS ni ignorar errores HTTPS. Una falla de permisos de NSS puede presentarse como auth/internal-error sin abrir el popup.

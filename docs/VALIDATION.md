@@ -1,3 +1,19 @@
+## 2026-10-15 · Bloqueo de acceso por cuota
+
+- Una lectura nativa pequeña confirmó nuevamente Quota exceeded / RESOURCE_EXHAUSTED en producción; el fallo del acceso no demuestra una revocación de permisos ni se resuelve cerrando sesión.
+- La pantalla distingue cuota, conexión, permisos y error desconocido. Reintentar acceso vuelve a verificar con la misma sesión Google; no concede permisos desde cache ni omite el registro de ingreso o las reglas.
+- Dos pruebas unitarias de clasificación y dos pruebas de navegador 1280/390 aprobadas: bloqueo simulado por cuota sin navegación autorizada, recuperación con permisos reales del emulador y un solo popup Google. Cuatro reglas de reparación y dos flujos de reparación también aprobados tras el ajuste. Catálogo: 672 entradas.
+- Publicación de Hosting, reglas Spark e índices completada. Comprobación de Hosting en 1280/390: HTTP 200, bundle actualizado, logo, sin desbordamiento ni errores JavaScript; no se hicieron consultas adicionales de datos privados durante la cuota agotada.
+- La causa externa continúa pendiente del reinicio de cuota de Firebase Spark. No se activó facturación ni se falsificó una recuperación de producción.
+
+## 2026-10-15 · Fase 3: herramienta de reparación de asociaciones
+
+- Administración → Campañas → Corregir vínculos permite revisar destino y ambos canales, cambiar a un pedido existente o desvincular sin tocar los pedidos. No crea pedidos ni convierte vínculos históricos en fechas automáticas. La metadata de origen de los pedidos se conserva como historial.
+- Destino activo, compatibilidad de canal, encargados/entregas/fechas/piezas conservados, rechazo de duplicar un pedido entre WP/SIS, guard global y revisiones. Recibo inmutable con actor, destino anterior/nuevo y vínculos antes/después; reenvío de la misma operación es idempotente.
+- La edición normal impide cambiar destino o retirar canales dejando marcadores anteriores. Los textos nuevos se incorporaron al editor (665 entradas).
+- 4 pruebas nuevas de reglas (corrección con recibo, denegación sin recibo, rol falsificado y conversión automática indebida) y 7 regresiones del worker: aprobadas. 2 pruebas de reparación en navegador 1280/390: aprobadas, incluyendo pedido eliminado, cambio de destino, entregado con Mega intacto, repetición y vista previa desactualizada. Otras 5 regresiones de campañas/sincronización: aprobadas. Los dos fallos iniciales de la nueva prueba eran etiquetas accesibles incompletas y se corrigieron con aria-label; no se desactivaron aserciones.
+- Pruebas solo con datos emulados. La cuota de producción continúa bloqueando la revisión de asociaciones reales: no se hicieron reparaciones masivas ni se da por completada esa revisión.
+
 ## 2026-10-15 · Recuperación de límite de Firebase
 
 - El workflow 38795399093 falló con 429; el reintento 38796596366 confirmó RESOURCE_EXHAUSTED y una lectura nativa pequeña confirmó «Quota exceeded». La importación adicional por bloques quedó parcialmente confirmada, **no se da por completada**. La fuente y los cambios confirmados se conservan.

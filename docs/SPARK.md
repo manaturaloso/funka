@@ -85,7 +85,7 @@ Los siete índices están READY. Logo completo y símbolo oficiales ya están gu
 
 ## Editor de textos
 
-645 textos registrados y título del navegador editables por superadmin, sin nuevo despliegue ni Functions. Solo siteContent/public y su colección texts son legibles públicamente; sus escrituras exigen Google verificado, rol activo, claves conocidas, campos restringidos, timestamp y revisión global atómicos. La actualización de cada texto compara su versión y conserva el borrador en conflictos. Los textos se renderizan como strings de React, nunca como HTML. Véase TEXTS.md.
+672 textos registrados y título del navegador editables por superadmin, sin nuevo despliegue ni Functions. Solo siteContent/public y su colección texts son legibles públicamente; sus escrituras exigen Google verificado, rol activo, claves conocidas, campos restringidos, timestamp y revisión global atómicos. La actualización de cada texto compara su versión y conserva el borrador en conflictos. Los textos se renderizan como strings de React, nunca como HTML. Véase TEXTS.md.
 
 Las campañas revisadas ya pueden generar/vincular pedidos por canal con vista previa e idempotencia. La generación inicial funciona en Spark; no requiere Functions. La sincronización continua y diaria sigue pendiente. Véase CAMPAIGNS.md.
 

@@ -3224,6 +3224,141 @@ export const siteTextCatalog = {
     "group": "Orders",
     "label": "Sincronización automática",
     "default": "Sincronización automática"
+  },
+  "Campaigns.58d81b9ef13a": {
+    "group": "Campaigns",
+    "label": "Corregir vínculos",
+    "default": "Corregir vínculos"
+  },
+  "Campaigns.b4a49c17eb05": {
+    "group": "Campaigns",
+    "label": "Solo cambia el destino y los vínculos de la campaña. Los pedidos conservan sus fechas, estados, piezas y entregas.",
+    "default": "Solo cambia el destino y los vínculos de la campaña. Los pedidos conservan sus fechas, estados, piezas y entregas."
+  },
+  "Campaigns.90a85065bbe6": {
+    "group": "Campaigns",
+    "label": "Los vínculos nuevos son históricos: no cambian automáticamente la fecha del pedido.",
+    "default": "Los vínculos nuevos son históricos: no cambian automáticamente la fecha del pedido."
+  },
+  "Campaigns.2dabd02f23e0": {
+    "group": "Campaigns",
+    "label": "Vínculos corregidos. Los pedidos se conservaron.",
+    "default": "Vínculos corregidos. Los pedidos se conservaron."
+  },
+  "Campaigns.53f1eb33d3d4": {
+    "group": "Campaigns",
+    "label": "Selecciona un destino",
+    "default": "Selecciona un destino"
+  },
+  "Campaigns.c678d3c36c23": {
+    "group": "Campaigns",
+    "label": "Revisar vínculos actuales",
+    "default": "Revisar vínculos actuales"
+  },
+  "Campaigns.4a1298907f40": {
+    "group": "Campaigns",
+    "label": "Vínculo para",
+    "default": "Vínculo para"
+  },
+  "Campaigns.7953064aad37": {
+    "group": "Campaigns",
+    "label": "Selecciona una decisión",
+    "default": "Selecciona una decisión"
+  },
+  "Campaigns.1cb52ae2156b": {
+    "group": "Campaigns",
+    "label": "Sin vínculo: conservar los pedidos",
+    "default": "Sin vínculo: conservar los pedidos"
+  },
+  "Campaigns.f1d31778f7ec": {
+    "group": "Campaigns",
+    "label": "Después",
+    "default": "Después"
+  },
+  "Campaigns.733d358bdb4f": {
+    "group": "Campaigns",
+    "label": "Sin vínculo",
+    "default": "Sin vínculo"
+  },
+  "Campaigns.410bed006721": {
+    "group": "Campaigns",
+    "label": "Sin decidir",
+    "default": "Sin decidir"
+  },
+  "Campaigns.6413c99699b1": {
+    "group": "Campaigns",
+    "label": "Revisé el destino y ambos vínculos antes de guardar.",
+    "default": "Revisé el destino y ambos vínculos antes de guardar."
+  },
+  "Campaigns.b683324d82ec": {
+    "group": "Campaigns",
+    "label": "Guardar corrección",
+    "default": "Guardar corrección"
+  },
+  "Campaigns.3eb505e412b4": {
+    "group": "Campaigns",
+    "label": "El pedido vinculado ya no existe.",
+    "default": "El pedido vinculado ya no existe."
+  },
+  "Campaigns.afcc03aea74b": {
+    "group": "Campaigns",
+    "label": "El vínculo pertenece a otro equipo o marca.",
+    "default": "El vínculo pertenece a otro equipo o marca."
+  },
+  "Campaigns.934ee8a285d3": {
+    "group": "Campaigns",
+    "label": "El canal ya no está seleccionado en la campaña.",
+    "default": "El canal ya no está seleccionado en la campaña."
+  },
+  "Campaigns.9b5859e7b558": {
+    "group": "Campaigns",
+    "label": "El pedido está archivado; puedes conservarlo o elegir otro.",
+    "default": "El pedido está archivado; puedes conservarlo o elegir otro."
+  },
+  "Campaigns.042320b7d58d": {
+    "group": "Campaigns",
+    "label": "El vínculo automático no coincide con el origen del pedido.",
+    "default": "El vínculo automático no coincide con el origen del pedido."
+  },
+  "Campaigns.1323321eed1f": {
+    "group": "Campaigns",
+    "label": "Pedido eliminado",
+    "default": "Pedido eliminado"
+  },
+  "App.5da1a0c0ed49": {
+    "group": "App",
+    "label": "Firebase alcanzó su cuota gratuita temporalmente. No podemos verificar tu acceso hasta que se restablezca. Tus permisos no se han cambiado.",
+    "default": "Firebase alcanzó su cuota gratuita temporalmente. No podemos verificar tu acceso hasta que se restablezca. Tus permisos no se han cambiado."
+  },
+  "App.3f602275dcb0": {
+    "group": "App",
+    "label": "No pudimos conectar con Firebase para verificar tu acceso. Revisa tu conexión y reintenta.",
+    "default": "No pudimos conectar con Firebase para verificar tu acceso. Revisa tu conexión y reintenta."
+  },
+  "App.6605521c68ae": {
+    "group": "App",
+    "label": "Firebase rechazó la verificación de tu acceso. Reintenta; si continúa, revisa tu autorización con el administrador.",
+    "default": "Firebase rechazó la verificación de tu acceso. Reintenta; si continúa, revisa tu autorización con el administrador."
+  },
+  "App.d24d062fef87": {
+    "group": "App",
+    "label": "No pudimos verificar tu acceso. Intenta verificarlo nuevamente.",
+    "default": "No pudimos verificar tu acceso. Intenta verificarlo nuevamente."
+  },
+  "App.61b818fb5bd7": {
+    "group": "App",
+    "label": "No se pudo abrir Funka",
+    "default": "No se pudo abrir Funka"
+  },
+  "App.e8c9e33eadca": {
+    "group": "App",
+    "label": "Puedes mantener tu sesión abierta y volver a intentarlo más tarde.",
+    "default": "Puedes mantener tu sesión abierta y volver a intentarlo más tarde."
+  },
+  "App.c89a80f7ff08": {
+    "group": "App",
+    "label": "Reintentar acceso",
+    "default": "Reintentar acceso"
   }
 } as const;
 export type SiteTextKey=keyof typeof siteTextCatalog;

@@ -8,7 +8,7 @@ Buscar por nombre, filtrar Marca del calendario, Mes de campaña o Revisión. Se
 
 Una revisión guarda su versión y un evento administrativo. Si la versión cambió, no sobrescribe la modificación ajena y conserva los campos locales en el formulario. Cerrar y volver a abrir parte del dato vigente. La edición es exclusiva de superadmins Google activos; los miembros y visitantes no leen estos borradores. No se permite crear, borrar ni reescribir su origen desde el cliente. La implementación de revisión usa Spark.
 
-Los textos de la pantalla están en Textos de la web → Campañas. El catálogo total ahora tiene 645 entradas; los valores de negocio WP/SIS, identificadores y contenido del calendario siguen siendo datos.
+Los textos de la pantalla están en Textos de la web → Campañas. El catálogo total ahora tiene 672 entradas; los valores de negocio WP/SIS, identificadores y contenido del calendario siguen siendo datos.
 
 ## Carga del origen
 
@@ -29,3 +29,13 @@ Se comprueba toda la colección del alcance (máximo 2000 pedidos) en una consul
 ## Fase 2: actualización continua
 
 La implementación vigente está en [CALENDAR_AUTOMATION.md](CALENDAR_AUTOMATION.md). Sustituye las limitaciones históricas anteriores sobre ausencia de sincronización: conserva identidades entre versiones, aparta coincidencias dudosas, preserva ajustes manuales y actualiza fechas automáticas de pedidos compatibles con historial y avisos. Las reparaciones de vínculos siguen en la Fase 3.
+
+## Fase 3: corregir vínculos
+
+Administración → Campañas → Corregir vínculos permite elegir el destino activo y revisar WP/SIS, incluidos canales que ya no están seleccionados. La vista previa detecta destinos anteriores, pedidos eliminados/archivados y marcadores automáticos que no coinciden con el origen del pedido. Cada canal requiere una decisión y confirmación explícita del conjunto.
+
+La reparación cambia solo campaña y marcadores; no mueve ni edita pedidos, estados, fechas, piezas, comentarios o entregas. Un vínculo nuevo es histórico (`linked`), sin actualización automática de fechas. Solo se conserva `created` si continúa el mismo pedido/destino y su origen coincide. Desvincular conserva el pedido y su metadata de origen como referencia histórica. No se generan pedidos nuevos durante la reparación; se usa Preparar pedidos después si corresponde.
+
+La escritura es atómica con guard, incremento de revisión y recibo inmutable antes/después, actor y destino. Una vista previa obsoleta se rechaza. Repetir una operación ya confirmada con la misma identidad/decisiones devuelve el recibo sin duplicarla. Las reglas solo admiten actualizar/borrar marcadores al propietario, con el recibo y revisión de campaña pareados. La edición normal ya no permite cambiar destinos o retirar canales dejando sus vínculos atrás.
+
+La herramienta se valida con datos emulados. Las correcciones reales se revisan cuando Firebase permite nuevamente leer la base; no se aplican reparaciones masivas sin vista previa ni se activan cargos.

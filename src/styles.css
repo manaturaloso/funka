@@ -75,3 +75,7 @@ header{padding:16px 4vw;border-bottom:1px solid #dce8e2}
 
 /* Columns follow their contents; long queues scroll inside the board. */
 .board{align-items:start}.board-column{min-height:0;max-height:72dvh;display:flex;flex-direction:column}.board-column>h2{flex-shrink:0}.board-cards{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}.board-cards .order-card:last-child{margin-bottom:0}.order-current-state{font-size:11px;color:#526c60;margin:12px 0 6px}.order-quick-states{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.order-quick-states button{padding:7px 2px;min-height:40px;font-size:11px;border:1px solid #dce7df;border-radius:7px;background:#fff;color:#365a4d}.order-quick-states button[aria-pressed=true]{background:#0c7970;color:white;border-color:#0c7970;opacity:1}.order-quick-states button:not(:disabled):hover{background:#e5f1eb}
+
+.campaign-links{background:white;border-radius:16px;padding:24px;max-height:90dvh;overflow-y:auto}.campaign-links section{border-top:1px solid #dce7df;padding-top:14px}.campaign-links select{max-width:100%}.campaign-links p{overflow-wrap:anywhere}
+
+.access-error{max-width:680px;padding:24px 0}.access-error h1{font-size:24px}.access-error p{line-height:1.6}.access-error button{margin-top:12px}
