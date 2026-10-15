@@ -2,7 +2,8 @@
 
 - El workflow 38795399093 falló con 429; el reintento 38796596366 confirmó RESOURCE_EXHAUSTED y una lectura nativa pequeña confirmó «Quota exceeded». La importación adicional por bloques quedó parcialmente confirmada, **no se da por completada**. La fuente y los cambios confirmados se conservan.
 - Se corrigió con recibo de historial el estado «running» que dejó el primer fallo. El segundo fallo puede conservar su lease hasta caducar si la cuota impide escribir también el error. No se inventa un éxito en Firestore.
-- Se añadieron reintentos acotados y espera persistente en GitHub hasta después del reinicio de cuota. Seis pruebas unitarias de transporte/espera y tres del proceso real en emuladores aprobadas. Firebase Spark continúa sin facturación. La recuperación de datos completa exige que Firebase libere cuota; se comprobará por un éxito real del worker.
+- Verificación real: [38797458893](https://github.com/manaturaloso/funka/actions/runs/38797458893) terminó con advertencia y estado deferred-quota, guardó la espera hasta 16/10/2026 08:30 UTC. [38797676524](https://github.com/manaturaloso/funka/actions/runs/38797676524) restauró esa espera y omitió autenticación/sincronización, sin consultar Firebase. Ambas ejecuciones fueron correctas como gestión de espera; **no equivalen a una sincronización de datos terminada**.
+- Se añadieron reintentos acotados y espera persistente en GitHub hasta después del reinicio de cuota. Siete pruebas unitarias de transporte/espera y tres del proceso real en emuladores aprobadas. Firebase Spark continúa sin facturación. La recuperación de datos completa exige que Firebase libere cuota; se comprobará por un éxito real del worker.
 
 ## 2026-10-15 · Lectura por bloques comerciales
 
