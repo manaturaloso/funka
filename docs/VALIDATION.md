@@ -1,3 +1,9 @@
+## 2026-10-15 · Recuperación de límite de Firebase
+
+- El workflow 38795399093 falló con 429; el reintento 38796596366 confirmó RESOURCE_EXHAUSTED y una lectura nativa pequeña confirmó «Quota exceeded». La importación adicional por bloques quedó parcialmente confirmada, **no se da por completada**. La fuente y los cambios confirmados se conservan.
+- Se corrigió con recibo de historial el estado «running» que dejó el primer fallo. El segundo fallo puede conservar su lease hasta caducar si la cuota impide escribir también el error. No se inventa un éxito en Firestore.
+- Se añadieron reintentos acotados y espera persistente en GitHub hasta después del reinicio de cuota. Seis pruebas unitarias de transporte/espera y tres del proceso real en emuladores aprobadas. Firebase Spark continúa sin facturación. La recuperación de datos completa exige que Firebase libere cuota; se comprobará por un éxito real del worker.
+
 ## 2026-10-15 · Lectura por bloques comerciales
 
 - Fuente confirmada por Joel: 1SaoG7PHCmVmKB7llxu2OFbYSVT6m25kWfNAU5I27hiQ, nueve pestañas y 1561 bloques. Exportación actual: cero incidencias de eje temporal.

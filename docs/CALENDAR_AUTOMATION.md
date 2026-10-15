@@ -38,3 +38,9 @@ El guard de Spark y las precondiciones de versión impiden sobrescribir cambios 
 - Pruebas del proceso completo usan `--emulator` y proyecto demo-funka; ninguna fixture se envía a producción.
 
 Las reparaciones de asociaciones campaña/canal/pedido se mantienen en la Fase 3. Esta fase no reasigna vínculos rotos ni crea sustitutos arbitrarios.
+
+## Cuota gratuita agotada
+
+Las respuestas explícitas 429/503 se reintentan cinco veces con espera creciente y las mismas precondiciones de versión. Si persiste 429 RESOURCE_EXHAUSTED, el wrapper calendar-schedule.mjs registra una advertencia de sincronización **incompleta**, conserva un pequeño archivo técnico de espera en GitHub Actions Cache y aplaza nuevas lecturas de Firebase hasta las 08:30 UTC posteriores a la siguiente medianoche de Los Ángeles (03:30 en Lima). La hora diaria configurada sigue aplicándose. No guarda tokens, campañas ni contraseñas en ese cache.
+
+Un workflow sin error puede significar «deferred-quota», no una sincronización completada. Solo calendarSync/state con éxito real confirma la actualización; el último éxito y sus datos no se falsifican. Otros errores, permisos inválidos y fuente incorrecta siguen haciendo fallar el workflow. Una ejecución manual respeta la espera de cuota. Si el cache falta o caduca se repite una comprobación acotada, nunca se activa facturación.

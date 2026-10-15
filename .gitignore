@@ -18,3 +18,5 @@ __pycache__/
 .local-validation/
 
 gha-creds-*.json
+
+.calendar-runtime/
