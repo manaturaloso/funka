@@ -36,6 +36,16 @@ def extract(path):
   for row,texts in by_row.items():
    weekdays=sum(t in ('L','M','X','J','V','S','D') for t in texts)
    if (weekdays>=20 and weekdays>=len(texts)*0.8) or sum(t in MONTHS for t in texts)>=6:header_rows.add(row)
+  # Channel comes from the labelled row block, including vertically merged labels.
+  # Seasonal/branding labels never imply a commercial channel.
+  channel_blocks=[]
+  for label in s._cells.values():
+   if label.column>=min(dates,default=1) or not isinstance(label.value,str):continue
+   label_text=norm(label.value);channels=[]
+   if re.search(r'\b(?:COMERCIAL\s+)?WEB\s+PROPIA\b',label_text) or label_text in ('WP','COMERCIAL WP'):channels=['WP']
+   elif re.search(r'\bCOMERCIAL\s+SIS\b',label_text) or label_text=='SIS':channels=['SIS']
+   if channels:
+    extent=merge_at.get((label.row,label.column));channel_blocks.append((label.row,extent.max_row if extent else label.row,channels))
   # Iterating actual cells avoids phantom formatted rows and handles shifted blocks.
   for cell in sorted(s._cells.values(),key=lambda c:(c.row,c.column)):
    if cell.row<=dayrow or cell.row in header_rows or cell.column not in dates or not isinstance(cell.value,str) or not cell.value.strip():continue
@@ -43,7 +53,10 @@ def extract(path):
    warnings=[]
    if len(mapped)!=len(span):warnings.append('El bloque incluye columnas sin fecha; revisar extensión')
    if any(b<=a or (b-a).days!=1 for a,b in zip(mapped,mapped[1:])):warnings.append('Eje temporal discontinuo; revisar fechas')
-   text=cell.value.strip();channels=sorted(set(re.findall(r'\b(WP|SIS)\b',norm(text))))
+   text=cell.value.strip();title_channels=set(re.findall(r'\b(WP|SIS)\b',norm(text)))
+   block_channels={channel for first,last,values in channel_blocks if first<=cell.row<=last for channel in values}
+   channels=sorted(block_channels or title_channels)
+   if block_channels and title_channels and title_channels!=block_channels:warnings.append('El canal del título difiere del bloque; revisar antes de generar pedidos')
    if not channels:warnings.append('Canal por confirmar; no generar pedidos arbitrarios')
    source_range=str(m) if m else cell.coordinate
    identity=[s.title,norm(text),mapped[0].isoformat(),mapped[-1].isoformat(),source_range]

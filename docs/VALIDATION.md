@@ -1,3 +1,9 @@
+## 2026-10-15 · Lectura por bloques comerciales
+
+- Fuente confirmada por Joel: 1SaoG7PHCmVmKB7llxu2OFbYSVT6m25kWfNAU5I27hiQ, nueve pestañas y 1561 bloques. Exportación actual: cero incidencias de eje temporal.
+- UMBRO: Cyber Umbro: 50%, WP, 26–30 octubre; COLISEUM DAYS: HASTA 50% OFF, SIS, 26–30 octubre; PRO TRAINING, Seasonal, 16–31 octubre. WP/SIS se leen también del bloque lateral combinado; Seasonal no recibe un canal supuesto.
+- Cinco pruebas Python aprobadas, incluyendo bloques combinados, conflicto título/bloque, fechas, encabezados desplazados y fuente inválida. Build aprobado. Vista previa real: 671 observaciones actualizadas, cero altas, cinco coincidencias pendientes y una ausencia; cero cambios de deadlines. No se cambia la fuente ni se recrean identidades por este ajuste.
+
 ## 2026-10-15 · Fase 2: calendario continuo
 
 - Identidades estables entre versiones, movimientos de filas y retorno a una observación original; duplicados y reemplazos dudosos quedan para decisión, sin elegir un vínculo arbitrario. Cambios manuales se conservan por comparación de tres versiones. Las ausencias se marcan sin borrar pedidos.

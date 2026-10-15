@@ -15,6 +15,13 @@ class CalendarTests(unittest.TestCase):
  def test_shifted_headers_merged_span_and_weekdays(self):
   with tempfile.TemporaryDirectory() as d:
    p=Path(d)/'source.xlsx';self.workbook().save(p);raw=p.read_bytes();data=reader.extract(p);self.assertEqual(data['year'],2026);self.assertEqual(data['sheets'][0]['monthRow'],3);self.assertEqual(data['sheets'][0]['dayRow'],5);self.assertEqual(len(data['campaigns']),2);promo=data['campaigns'][0];self.assertEqual((promo['start'],promo['end']),('2026-01-30','2026-02-02'));self.assertEqual(promo['channelHints'],['WP']);self.assertTrue(data['campaigns'][1]['issues']);self.assertEqual(p.read_bytes(),raw)
+ def test_commercial_channels_from_merged_labels_and_seasonal(self):
+  with tempfile.TemporaryDirectory() as d:
+   w=self.workbook();s=w.active;s['B8']='COMERCIAL WEB PROPIA';s.merge_cells('B8:C10');s['B11']='COMERCIAL SIS';s.merge_cells('B11:C13');s.cell(8,34,'Cyber Umbro: 50%');s.cell(11,50,'COLISEUM DAYS: HASTA 50% OFF');s['B14']='SEASONAL';s.merge_cells('B14:C16');s.cell(15,60,'PRO TRAINING');s.merge_cells(start_row=15,start_column=60,end_row=15,end_column=75)
+   p=Path(d)/'source.xlsx';w.save(p);rows=reader.extract(p)['campaigns'];self.assertEqual(rows[0]['channelHints'],['WP']);self.assertEqual(rows[1]['channelHints'],['SIS']);self.assertEqual(rows[2]['channelHints'],[]);self.assertEqual(rows[2]['end'],'2026-03-12')
+ def test_conflicting_title_channel_requires_review(self):
+  with tempfile.TemporaryDirectory() as d:
+   w=self.workbook();s=w.active;s['B8']='COMERCIAL SIS';s.merge_cells('B8:C10');p=Path(d)/'source.xlsx';w.save(p);row=reader.extract(p)['campaigns'][0];self.assertEqual(row['channelHints'],['SIS']);self.assertTrue(any('difiere' in issue for issue in row['issues']))
  def test_ambiguous_year_rejected(self):
   with tempfile.TemporaryDirectory() as d:
    w=self.workbook();w.active['A2']=2025;p=Path(d)/'source.xlsx';w.save(p)

@@ -2,6 +2,8 @@
 
 Fuente autorizada: el Google Sheet enlazado por Joel, ID `1SaoG7PHCmVmKB7llxu2OFbYSVT6m25kWfNAU5I27hiQ`. El proceso descarga su exportación pública XLSX por HTTPS, valida año/eje temporal/pestañas y un máximo de 2000 campañas. No modifica la hoja. Una fuente inválida conserva lo confirmado y registra un error; no elimina campañas ni pedidos.
 
+El lector reconoce Comercial Web Propia como WP y Comercial SIS como SIS a partir del rótulo lateral, incluidos bloques combinados verticalmente. Si el título contradice el bloque, pide revisión. Seasonal, Branding y Always On se extraen con su rango completo, pero no se les inventa un canal comercial. Los canales detectados se proponen en borradores no revisados; una revisión confirmada conserva los canales elegidos.
+
 ## Ejecución
 
 `.github/workflows/calendar-sync.yml` usa un runner Linux estándar del repositorio público. Comprueba cada 30 minutos si ya pasó la hora diaria de Lima configurada en Administración; realiza una sincronización correcta por día, atiende solicitudes manuales pendientes y reintenta errores. GitHub puede retrasar sus cron: no se promete el minuto exacto. Solicitar actualización no es ejecución instantánea. La hora de entrega y los días de anticipación se toman de la configuración existente.
