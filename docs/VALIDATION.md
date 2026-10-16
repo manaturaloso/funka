@@ -1,3 +1,10 @@
+## 2026-10-15 · Fase 4: vista previa multimarcas
+
+- Lectura local del Excel proporcionado: 11 pestañas, 1421 filas con información y 566 registros exactamente distintos. Ocho copias de NB DISEÑO aportan 848 filas; no se reasignaron a marcas distintas ni se excluyeron sin confirmación.
+- Proyección si se excluyen esas copias: 573 filas en NB DISEÑO, COLISEUM DISEÑO y COLISEUM CM. Repeticiones, prioridades/tipos no equivalentes, enlaces mal formados y cuentas reales pendientes de revisión.
+- Siete pruebas del lector aprobadas: columnas/fechas/personas, fragmentos Mega completos, copias y marcas contradictorias, posteo separado de entrega, prioridad inválida, enlaces concatenados, detalle opcional, fórmulas no ejecutadas y versiones conflictivas (algunos casos comparten prueba). Archivo original sin cambios; salida privada fuera de Git. Sin escrituras en Firebase ni nuevo despliegue de la app.
+- Una comprobación pequeña confirmó que la cuota de producción aún sigue agotada. Las últimas ejecuciones de GitHub respetan la espera; estado success del workflow no se presenta como recuperación de datos.
+
 ## 2026-10-15 · Bloqueo de acceso por cuota
 
 - Una lectura nativa pequeña confirmó nuevamente Quota exceeded / RESOURCE_EXHAUSTED en producción; el fallo del acceso no demuestra una revocación de permisos ni se resuelve cerrando sesión.
