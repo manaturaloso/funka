@@ -17,7 +17,7 @@ Día de posteo es independiente de Deadline; una fecha de entrega sin hora perma
 
 Los enlaces de Mega se conservan con su fragmento completo; cadenas concatenadas o mal formadas quedan en los datos originales y se señalan. Las filas de plantilla con solo marca/red social se excluyen, pero un pedido con otros datos se conserva aunque no tenga detalle ni campaña. Las imágenes incrustadas se cuentan y requieren una revisión separada.
 
-Las copias de pestañas se comparan incluyendo datos, enlaces y fórmulas. Los registros repetidos y las identidades parecidas con datos diferentes se presentan para revisión, sin fusionar ni borrar filas. Los identificadores de vista previa no son IDs de pedidos; el futuro importador debe comparar con los pedidos ya existentes y generar recibos idempotentes antes de escribir.
+Las copias de pestañas se comparan incluyendo datos, enlaces y fórmulas. Los registros repetidos y las identidades parecidas con datos diferentes se presentan para revisión, sin fusionar ni borrar filas. Los identificadores de vista previa no son IDs de pedidos; el importador debe comparar con los pedidos ya existentes y generar recibos idempotentes antes de escribir.
 
 ## Archivo revisado el 15 de octubre de 2026 (Lima)
 
@@ -25,4 +25,12 @@ Las copias de pestañas se comparan incluyendo datos, enlaces y fórmulas. Los r
 
 Si Joel confirma excluir las ocho copias, quedan 573 filas por revisar: NB DISEÑO 106, COLISEUM DISEÑO 455 y COLISEUM CM 12. Esa proyección todavía incluye repeticiones que no se deben fusionar por suposición. Hay 154 prioridades y 511 tipos que necesitan equivalencias o una política explícita de valores faltantes, 3 enlaces mal formados y nombres de encargados pendientes de vincular con sus cuentas reales.
 
-No se importó nada. Falta confirmar si las copias son plantillas y completar las correspondencias de personas/equipos/marcas. La comprobación contra datos reales requiere recuperar cuota en Firebase; la sincronización continúa respetando su espera programada.
+## Primer lote importado el 16 de octubre de 2026
+
+Con la cuota recuperada se compararon los 1207 pedidos existentes, sin coincidencias de destino para el lote. Se importaron 10 pedidos activos únicos de NB DISEÑO a New Balance Perú, conservando estado, fechas, detalle, campaña y datos originales. Los responsables originales quedan en el origen y un comentario; no se asignaron UID por suposición. Los tiempos numéricos sin unidad se conservan en el origen, pero el tiempo operativo queda sin completar. Las fechas sin hora utilizan la hora de entrega configurada y zona Lima.
+
+`scripts/import-agency.mjs` requiere `npm run build` para los esquemas compartidos compilados. Recibe `--preview`, `--live`, `--existing` y `--source`; por defecto solo muestra conteos y hash. Para aplicar requiere `--apply --confirm <hash exacto>`. El archivo debe coincidir con el SHA de la vista previa. El destino activo y el propietario se verifican de nuevo contra Firebase, junto a los campos obligatorios actuales. Solo admite el lote limpio de NB y un máximo de 30 pedidos por transacción.
+
+Cada creación tiene recibo global inmutable, historial local y precondiciones atómicas. Repetir el mismo lote produjo 0 creaciones y 10 omisiones, sin sobrescribir cambios posteriores. No se modificaron pedidos anteriores. Cinco pruebas aprobadas incluyen la ejecución real del CLI contra emuladores y repetición tras editar un pedido.
+
+Quedan 36 pedidos activos de Coliseum con tipos o repeticiones por resolver y 527 entregados fuera de este lote. Las ocho pestañas copiadas siguen fuera de la importación; falta confirmar su contenido y vincular nombres a cuentas activas. No se reasignaron copias de NB a marcas distintas.

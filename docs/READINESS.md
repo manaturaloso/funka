@@ -1,8 +1,8 @@
 # Qué falta para utilizar Funka como equipo
 
-Revisión del pedido original y de las mejoras posteriores, 15 de octubre de 2026 (Lima). Producción: https://pendientesfunka.web.app. Se mantiene Firebase Spark sin facturación.
+Revisión del pedido original y de las mejoras posteriores, 16 de octubre de 2026 (Lima). Producción: https://pendientesfunka.web.app. Se mantiene Firebase Spark sin facturación.
 
-La herramienta de Fase 3 permite corregir asociaciones por campaña con vista previa e historial; falta revisar datos reales al recuperar cuota. El límite de Firebase del 15 de octubre puede impedir temporalmente leer datos, aunque Hosting siga disponible.
+La cuota se recuperó: última sincronización real comprobada el 16 de octubre a las 9:31 a. m. de Lima. Se completó la revisión de asociaciones existentes sin encontrar vínculos que reparar. Primer lote de Fase 4: 10 pedidos activos de New Balance importados con historial y origen conservado.
 
 ## Ya utilizable
 
@@ -18,11 +18,11 @@ El historial de la aplicación incluye cambios de pedidos y acciones administrat
 
 ## Cinco fases acordadas
 
-Véase [PHASES.md](PHASES.md). La Fase 1 habilita edición colaborativa con historial atómico, acciones por persona simplificadas, encargados múltiples y entrega con enlace opcional. Las siguientes fases siguen pendientes:
+Véase [PHASES.md](PHASES.md). La Fase 1 habilita edición colaborativa con historial atómico, acciones por persona simplificadas, encargados múltiples y entrega con enlace opcional. Estado de las siguientes fases:
 
 2. **Calendario continuo.** Implementado en esta fase: identidades estables, diferencias, revisión de coincidencias, fechas automáticas protegidas e historial/avisos. Ejecución diaria mediante GitHub Actions, manteniendo Spark. La validación y activación de producción se registran en VALIDATION.md.
 3. **Corrección de vínculos de campañas.** Reparación y reasignación con vista previa e historial, conservando pedidos existentes.
-4. **Importaciones y responsables.** 1207 pedidos Converse ya importados; vincular responsables históricos a cuentas reales. Revisar duplicados y destinos del Excel multimarcas antes de incorporarlo.
+4. **Importaciones y responsables.** 1207 pedidos Converse y 10 activos de New Balance importados; vincular responsables históricos a cuentas reales. Quedan 36 activos del multimarcas por aclarar y 527 entregados fuera del lote inicial.
 5. **Cuentas y accesos de clientes.** Pestañas de consulta y edición administrativa; falta implementar almacenamiento y permisos. Definir visibilidad de clientes antes de construir esta fase.
 
 Además del alcance de las fases, falta el piloto de aceptación con Joel y dos personas reales. Las pruebas con Google emulado no sustituyen esa comprobación. No hay respaldo periódico automático configurado.

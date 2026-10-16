@@ -1,3 +1,11 @@
+## 2026-10-16 · Recuperación y primer lote multimarcas
+
+- Firestore confirma sincronización real exitosa a las 14:31:26 UTC (9:31 a. m. Lima), sin error. UMBRO conserva PRO TRAINING del 16 al 31 y campañas WP/SIS del 26 al 30. Spark sigue sin facturación.
+- Revisión acotada de producción: 1207 pedidos originales, ningún marcador de asociación y ninguna campaña revisada. No se necesitaron reparaciones de vínculos. No se repitió el escaneo completo después de importar.
+- Cinco pruebas del importador aprobadas, incluida ejecución CLI con Auth/Firestore emulados, historial, fechas y datos originales, fracciones numéricas y repetición tras una edición sin sobrescribirla.
+- Producción: 10 pedidos activos de New Balance creados y 10 verificados; repetición real: 0 creaciones y 10 omisiones. Escritura atómica con recibos globales, historial por pedido y nombres originales en comentario. Sin asignar cuentas inventadas; ningún pedido anterior modificado.
+- Pendientes de importación: 36 activos con tipos/repeticiones por resolver y 527 entregados. Las ocho copias de NB siguen fuera del lote. No se cambió Hosting ni las reglas para esta carga de datos.
+
 ## 2026-10-15 · Fase 4: vista previa multimarcas
 
 - Lectura local del Excel proporcionado: 11 pestañas, 1421 filas con información y 566 registros exactamente distintos. Ocho copias de NB DISEÑO aportan 848 filas; no se reasignaron a marcas distintas ni se excluyeron sin confirmación.
