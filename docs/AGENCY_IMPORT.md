@@ -34,3 +34,9 @@ Con la cuota recuperada se compararon los 1207 pedidos existentes, sin coinciden
 Cada creación tiene recibo global inmutable, historial local y precondiciones atómicas. Repetir el mismo lote produjo 0 creaciones y 10 omisiones, sin sobrescribir cambios posteriores. No se modificaron pedidos anteriores. Cinco pruebas aprobadas incluyen la ejecución real del CLI contra emuladores y repetición tras editar un pedido.
 
 Quedan 36 pedidos activos de Coliseum con tipos o repeticiones por resolver y 527 entregados fuera de este lote. Las ocho pestañas copiadas siguen fuera de la importación; falta confirmar su contenido y vincular nombres a cuentas activas. No se reasignaron copias de NB a marcas distintas.
+
+## Revisión adicional de Coliseum
+
+Los 36 activos están en COLISEUM DISEÑO. El encabezado de esa pestaña no contiene Tipo: no se trata de 36 valores ilegibles. Hay 28 filas con detalle y ocho filas idénticas (445–452), sin detalle, con campaña AON. Estas últimas podrían ser reservas de plantilla; no se presentan como ocho pedidos confirmados ni se fusionan automáticamente.
+
+La revisión privada `.local-imports/coliseum-active-review.md` enumera filas, detalle, campaña y estado, omitiendo personas y enlaces. Las sugerencias Video/Mail que se pueden deducir del detalle son propuestas sin aplicar. Se consultó a Joel por la clasificación Otros y el tratamiento de las repeticiones; la importación queda pendiente de su respuesta.
